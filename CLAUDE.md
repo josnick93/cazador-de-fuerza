@@ -35,6 +35,8 @@ Futuro: Cloudflare Workers + D1 + login con Google (lo mismo que MacroQuest, `..
   Fichas en español en `src/data/exerciseGuides.ts`; fotos de free-exercise-db (dominio público) en
   `public/exercises/<id>/{0,1}.webp` (560 px, WebP q60). Ejercicio nuevo ⇒ ficha + fotos (lo exige un test).
   Los ejercicios nuevos van al FINAL del catálogo para no cambiar la elección del generador.
+  Prueba de concepto: más adelante, sacar las fotos del repo a un almacenamiento externo (p. ej. Cloudflare R2
+  con dominio propio) y que `getExerciseGuide` construya la URL desde una base configurable.
 
 ## Roadmap (hacer en orden, marcar [x] al terminar)
 
@@ -88,7 +90,10 @@ Leer ese código antes de diseñar nada. Secretos con `wrangler secret`, nunca e
       según el objetivo de MacroQuest (perder/mantener/ganar). Datos de `/api/nutrition` (`worker/nutrition.ts`, solo
       LEE `records` de MacroQuest: diario, pesajes y perfil) cacheados en local (`services/nutritionService.ts`).
       Sustituye el mock de nutrición (borrado). Solo con «Sincronizar con MacroQuest» activado.
-- [ ] Tarjeta «Fuerza esta semana» en MacroQuest (repo `../macro-quest-app`): leer `fuerza_records` desde su Worker.
+- [x] Tarjeta «Fuerza esta semana» en MacroQuest (rama `fuerza-semana` de `../macro-quest-app`): su Worker lee
+      `fuerza_records` (GET /api/fuerza) y resume entrenos de la semana, PRs y tendencia de los básicos. Depende de los
+      ids de los básicos (`ex-banca-barra`, `ex-sentadilla`, `ex-peso-muerto`, `ex-press-militar`, `ex-dominadas`) y
+      de la forma de `WorkoutLog`: no cambiarlos sin actualizar `lib/fuerzaApi.ts` de MacroQuest.
 
 ### Fase 4 — Coach IA (API de Anthropic)
 - [ ] Endpoint `/api/coach` en el Worker: recibe 8 semanas de e1RM/nutrición/sueño, devuelve JSON {causa, cambios[3]}. Modelo `claude-haiku-5-5`. Clave en secret `ANTHROPIC_API_KEY`.
