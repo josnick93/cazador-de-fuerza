@@ -17,9 +17,10 @@ import {
   formatWeight,
   getBestE1rm,
   getExerciseById,
-  getExercisesByMuscle,
+  getAlternatives,
   completeWorkout,
   getTodayWorkout,
+  substituteExercise,
 } from "@/services/strengthService";
 import { parseRepRange } from "@/engine/progression";
 import type { ActiveSetRow, PlannedExercise, WorkoutSummary } from "@/types";
@@ -44,9 +45,8 @@ export function EntrenoActivoPage() {
   const { profile, setView } = useApp();
   const [workout] = useState(() => getTodayWorkout());
 
-  const [exerciseIds, setExerciseIds] = useState<string[]>(() =>
-    workout.exercises.map((e) => e.exerciseId),
-  );
+  // Plan efectivo por ejercicio (cambia al sustituir); workout.exercises guarda el original.
+  const [plannedList, setPlannedList] = useState<PlannedExercise[]>(() => workout.exercises);
   const [currentIdx, setCurrentIdx] = useState(0);
   const [setsByExercise, setSetsByExercise] = useState<Record<number, ActiveSetRow[]>>(() => {
     const map: Record<number, ActiveSetRow[]> = {};
@@ -77,9 +77,9 @@ export function EntrenoActivoPage() {
     return () => window.clearInterval(timer);
   }, [restSeconds]);
 
-  const currentPlanned = workout.exercises[currentIdx];
-  const currentExerciseId = exerciseIds[currentIdx] ?? currentPlanned?.exerciseId ?? "";
-  const currentExercise = getExerciseById(currentExerciseId);
+  const originalPlanned = workout.exercises[currentIdx];
+  const currentPlanned = plannedList[currentIdx];
+  const currentExercise = currentPlanned ? getExerciseById(currentPlanned.exerciseId) : undefined;
   const currentSets = setsByExercise[currentIdx] ?? [];
 
   const updateSet = (setIdx: number, updater: (row: ActiveSetRow) => ActiveSetRow) => {
@@ -110,7 +110,23 @@ export function EntrenoActivoPage() {
   };
 
   const handleSwapExercise = (newExerciseId: string) => {
-    setExerciseIds((prev) => prev.map((id, i) => (i === currentIdx ? newExerciseId : id)));
+    if (!originalPlanned) return;
+    // Siempre desde el original: volver a él recupera exactamente su carga.
+    const next = substituteExercise(originalPlanned, newExerciseId);
+    setPlannedList((prev) => prev.map((p, i) => (i === currentIdx ? next : p)));
+    setSetsByExercise((prev) => ({
+      ...prev,
+      [currentIdx]: (prev[currentIdx] ?? []).map((row) =>
+        row.completed
+          ? row
+          : {
+              ...row,
+              kg: next.targetKg,
+              isPr: false,
+              e1rm: calculateE1rm(next.targetKg, row.reps, row.rir),
+            },
+      ),
+    }));
     setShowSwapModal(false);
   };
 
@@ -121,7 +137,7 @@ export function EntrenoActivoPage() {
 
     Object.entries(setsByExercise).forEach(([idxStr, rows]) => {
       const idx = Number(idxStr);
-      const exId = exerciseIds[idx];
+      const exId = plannedList[idx]?.exerciseId;
       const ex = exId ? getExerciseById(exId) : undefined;
       rows.forEach((row) => {
         if (row.completed) {
@@ -140,7 +156,7 @@ export function EntrenoActivoPage() {
         workout,
         durationSeconds,
         exercises: workout.exercises.map((planned, idx) => ({
-          exerciseId: exerciseIds[idx] ?? planned.exerciseId,
+          exerciseId: plannedList[idx]?.exerciseId ?? planned.exerciseId,
           plannedExerciseId: planned.exerciseId,
           sets: (setsByExercise[idx] ?? [])
             .filter((row) => row.completed)
@@ -233,7 +249,15 @@ export function EntrenoActivoPage() {
 
   if (!currentExercise || !currentPlanned) return null;
 
-  const alternatives = getExercisesByMuscle(currentExercise.muscle);
+  const swapOptions = [
+    currentExercise,
+    ...(originalPlanned && originalPlanned.exerciseId !== currentExercise.id
+      ? [getExerciseById(originalPlanned.exerciseId)].filter((e) => e !== undefined)
+      : []),
+    ...getAlternatives(originalPlanned?.exerciseId ?? currentExercise.id).filter(
+      (e) => e.id !== currentExercise.id,
+    ),
+  ];
   const elapsedMins = Math.floor(elapsedSeconds / 60);
   const elapsedSecs = elapsedSeconds % 60;
 
@@ -466,21 +490,32 @@ export function EntrenoActivoPage() {
               </button>
             </div>
             <div className="space-y-2">
-              {alternatives.map((alt) => (
-                <button
-                  key={alt.id}
-                  type="button"
-                  onClick={() => handleSwapExercise(alt.id)}
-                  className={`flex min-h-[52px] w-full items-center justify-between rounded-xl border px-3.5 text-left text-sm font-semibold ${
-                    alt.id === currentExercise.id
-                      ? "border-primary bg-primary/15 text-primary"
-                      : "border-border bg-surface text-foreground"
-                  }`}
-                >
-                  <span>{alt.name}</span>
-                  {alt.id === currentExercise.id && <Check className="h-4 w-4" />}
-                </button>
-              ))}
+              {swapOptions.map((alt) => {
+                const selected = alt.id === currentExercise.id;
+                const kg = selected
+                  ? currentPlanned.targetKg
+                  : originalPlanned
+                    ? substituteExercise(originalPlanned, alt.id).targetKg
+                    : currentPlanned.targetKg;
+                return (
+                  <button
+                    key={alt.id}
+                    type="button"
+                    onClick={() => handleSwapExercise(alt.id)}
+                    className={`flex min-h-[52px] w-full items-center justify-between gap-2 rounded-xl border px-3.5 text-left text-sm font-semibold ${
+                      selected
+                        ? "border-primary bg-primary/15 text-primary"
+                        : "border-border bg-surface text-foreground"
+                    }`}
+                  >
+                    <span className="min-w-0 flex-1">{alt.name}</span>
+                    <span className="shrink-0 text-xs text-muted-foreground">
+                      {formatWeight(kg, profile.unit)}
+                    </span>
+                    {selected && <Check className="h-4 w-4 shrink-0" />}
+                  </button>
+                );
+              })}
             </div>
           </div>
         </div>

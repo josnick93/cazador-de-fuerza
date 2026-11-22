@@ -3,6 +3,7 @@ import { DEFAULT_PROFILE } from "@/data/defaultProfile";
 import { generateMesocycle } from "@/engine/generator";
 import { allSets, bestE1rm, formatSet, relativeDayLabel, weeklyBestE1rm } from "@/engine/history";
 import { detectPlateau } from "@/engine/plateau";
+import { findAlternatives, substitutePlannedExercise } from "@/engine/substitution";
 import { MOCK_WEEKLY_NUTRITION } from "@/mocks/nutrition";
 import { MOCK_INITIAL_COACH_MESSAGES, MOCK_WEEKLY_REVIEW } from "@/mocks/workouts";
 import { uniqueId } from "@/lib/id";
@@ -18,6 +19,7 @@ import type {
   MesocycleWeek,
   MuscleGroup,
   PersonalRecord,
+  PlannedExercise,
   PlannedSession,
   StagnationAlert,
   UserProfile,
@@ -70,6 +72,25 @@ export function getMainLifts() {
 
 function liftExerciseId(liftId: LiftId): string | undefined {
   return EXERCISE_CATALOG.find((ex) => ex.liftId === liftId)?.id;
+}
+
+/** Alternativas al ejercicio (mismo músculo) según el equipamiento del perfil. */
+export function getAlternatives(exerciseId: string): Exercise[] {
+  const current = getExerciseById(exerciseId);
+  return current ? findAlternatives(current, EXERCISE_CATALOG, getUserProfile().equipment) : [];
+}
+
+/** Sustituye el ejercicio planificado recalculando la carga para el nuevo. */
+export function substituteExercise(
+  planned: PlannedExercise,
+  toExerciseId: string,
+): PlannedExercise {
+  const from = getExerciseById(planned.exerciseId);
+  const to = getExerciseById(toExerciseId);
+  if (!from || !to || from.id === to.id) return planned;
+  const next = substitutePlannedExercise(planned, from, to, getUserProfile(), getKnownE1rms());
+  const last = allSets(getWorkoutLogs(), [to.id]).at(-1);
+  return last ? { ...next, lastSessionText: `Última vez: ${formatSet(last)}` } : next;
 }
 
 // ── Entrenos registrados ────────────────────────────────────────────────────

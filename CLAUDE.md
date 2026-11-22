@@ -43,7 +43,7 @@ Futuro: Supabase (auth + Postgres + Edge Functions), Capacitor (Android/iOS), St
 - [x] `src/engine/generator.ts`: genera mesociclo (4-6 semanas) según objetivo, días/semana, duración, equipamiento y 1RM.
       Plantillas: Full body (2-3 días), Torso/Pierna (4), PPL (5-6), Powerlifting (básicos + %1RM). Descarga automática última semana.
 - [x] Persistencia local (localStorage/IndexedDB) de workouts y sets reales, sustituyendo mocks en services.
-- [ ] Sustitución de ejercicio por otro del mismo músculo con recálculo de pesos.
+- [x] Sustitución de ejercicio por otro del mismo músculo con recálculo de pesos.
 - [ ] Al terminar sesión: aplicar progresión, guardar PRs, sumar XP.
 
 ### Fase 3 — Backend Supabase (compartido con MacroQuest)

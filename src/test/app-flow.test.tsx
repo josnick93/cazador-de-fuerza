@@ -72,6 +72,25 @@ describe("Flujo de la app", () => {
     expect(screen.getByRole("heading", { name: "Pierna A" })).toBeInTheDocument();
   });
 
+  it("sustituye un ejercicio recalculando la carga y lo registra con el original", () => {
+    seedProfile();
+    renderApp();
+    fireEvent.click(screen.getByRole("button", { name: /Empezar entreno/ }));
+    expect(screen.getAllByText("77,5")).toHaveLength(3);
+
+    fireEvent.click(screen.getByRole("button", { name: /Cambiar/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Press Inclinado con Barra/ }));
+    expect(screen.getByRole("heading", { name: "Press Inclinado con Barra" })).toBeInTheDocument();
+    expect(screen.getAllByText("65")).toHaveLength(3); // 77,5 × 0,85 → 65
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Hecho" })[0]!);
+    fireEvent.click(screen.getByRole("button", { name: "Terminar" }));
+    expect(getWorkoutLogs()[0]!.exercises[0]).toMatchObject({
+      exerciseId: "ex-press-inclinado",
+      plannedExerciseId: "ex-banca-barra",
+    });
+  });
+
   it("no marca la sesión como hecha si se termina sin series", () => {
     seedProfile();
     renderApp();
