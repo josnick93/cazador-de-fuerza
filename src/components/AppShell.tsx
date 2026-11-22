@@ -3,6 +3,7 @@ import { MobileLayout } from "@/components/MobileLayout";
 import { EntrenoActivoPage } from "@/pages/EntrenoActivoPage";
 import { HoyPage } from "@/pages/HoyPage";
 import { OnboardingPage } from "@/pages/OnboardingPage";
+import { PlanPage } from "@/pages/PlanPage";
 import { ProgresoPage } from "@/pages/ProgresoPage";
 
 function PendingPage({ title }: { title: string }) {
@@ -23,7 +24,7 @@ function renderView(view: AppView) {
     case "progreso":
       return <ProgresoPage />;
     case "plan":
-      return <PendingPage title="Plan" />;
+      return <PlanPage />;
     case "coach":
       return <PendingPage title="Coach" />;
     case "perfil":
