@@ -81,7 +81,9 @@ export function ProgresoPage() {
               <p className="mt-1 text-xs text-muted-foreground">{stagnation.cause}</p>
               <button
                 type="button"
-                onClick={() => openCoachWithPrompt("¿Por qué no subo en banca?")}
+                onClick={() =>
+                  openCoachWithPrompt(`¿Por qué no subo en ${stagnation.liftName.toLowerCase()}?`)
+                }
                 className="mt-3 inline-flex min-h-[48px] items-center gap-1.5 rounded-xl bg-destructive px-4 font-display text-sm font-bold text-destructive-foreground"
               >
                 Ver por qué

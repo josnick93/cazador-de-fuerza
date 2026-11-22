@@ -34,7 +34,7 @@ Futuro: Supabase (auth + Postgres + Edge Functions), Capacitor (Android/iOS), St
 - [x] `PlanPage`: timeline del mesociclo (Acumulación → Intensificación → Descarga), semana actual destacada, días con sesión y estado.
 - [x] `CoachPage`: tarjeta "Revisión semanal" + chat con sugerencias rápidas ("¿Por qué no subo en banca?", "Ajusta mi semana", "Hoy tengo poco tiempo"). Respeta `coachPendingPrompt`.
 - [x] `PerfilPage`: datos, objetivo, unidades kg/lb, toggle "Sincronizar con MacroQuest", tarjeta Premium, botón rehacer onboarding.
-- [ ] Revisar flujo completo Hoy → Entreno activo → Resumen → Progreso. Test de routing actualizado.
+- [x] Revisar flujo completo Hoy → Entreno activo → Resumen → Progreso. Test de routing actualizado.
 
 ### Fase 2 — Entrenos personalizados (motor local)
 - [ ] `src/engine/progression.ts`: doble progresión con RIR

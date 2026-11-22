@@ -1,5 +1,15 @@
 import { useEffect, useState } from "react";
-import { ArrowLeft, ArrowRight, Check, Minus, Plus, RefreshCw, Trophy, X } from "lucide-react";
+import {
+  ArrowLeft,
+  ArrowRight,
+  BarChart3,
+  Check,
+  Minus,
+  Plus,
+  RefreshCw,
+  Trophy,
+  X,
+} from "lucide-react";
 import { useApp } from "@/components/AppContext";
 import { RestTimerBar } from "@/components/RestTimerBar";
 import {
@@ -181,13 +191,23 @@ export function EntrenoActivoPage() {
           )}
         </div>
 
-        <button
-          type="button"
-          onClick={() => setView("hoy")}
-          className="mt-8 flex min-h-[56px] w-full items-center justify-center rounded-xl bg-primary font-display text-lg font-bold text-primary-foreground system-glow"
-        >
-          Volver a Hoy
-        </button>
+        <div className="mt-8 space-y-2.5">
+          <button
+            type="button"
+            onClick={() => setView("progreso")}
+            className="flex min-h-[56px] w-full items-center justify-center gap-2 rounded-xl bg-primary font-display text-lg font-bold text-primary-foreground system-glow"
+          >
+            <BarChart3 className="h-5 w-5" />
+            Ver progreso
+          </button>
+          <button
+            type="button"
+            onClick={() => setView("hoy")}
+            className="flex min-h-[52px] w-full items-center justify-center rounded-xl border border-border bg-surface font-display text-base font-bold text-foreground"
+          >
+            Volver a Hoy
+          </button>
+        </div>
       </div>
     );
   }
