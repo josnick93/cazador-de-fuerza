@@ -1,5 +1,14 @@
 import { useState } from "react";
-import { AlertTriangle, ArrowRight, LineChart, Trophy } from "lucide-react";
+import {
+  AlertTriangle,
+  ArrowRight,
+  CheckCircle2,
+  CircleDashed,
+  Compass,
+  LineChart,
+  Trophy,
+  XCircle,
+} from "lucide-react";
 import {
   CartesianGrid,
   ComposedChart,
@@ -17,11 +26,70 @@ import {
   getRecentPRs,
   getStagnationAlert,
   getWeeklyNutrition,
+  getWeeklyVerdict,
 } from "@/services/strengthService";
+import type { CheckStatus, Verdict } from "@/engine/verdict";
 import type { LiftId } from "@/types";
 
+const STATUS_STYLE: Record<CheckStatus, { card: string; text: string; icon: typeof CheckCircle2 }> =
+  {
+    bien: { card: "border-success/50 bg-success/10", text: "text-success", icon: CheckCircle2 },
+    atento: { card: "border-gold/50 bg-gold/10", text: "text-gold", icon: AlertTriangle },
+    mal: {
+      card: "border-destructive/50 bg-destructive/10",
+      text: "text-destructive",
+      icon: XCircle,
+    },
+    "sin-datos": {
+      card: "border-border bg-card",
+      text: "text-muted-foreground",
+      icon: CircleDashed,
+    },
+  };
+
+const GOAL_LABEL = { ganar: "volumen", perder: "definición", mantener: "mantenimiento" } as const;
+
+function VerdictCard({ verdict }: { verdict: Verdict }) {
+  const style = STATUS_STYLE[verdict.status];
+  return (
+    <section aria-labelledby="verdict-title" className={`rounded-2xl border p-4 ${style.card}`}>
+      <span className="inline-flex items-center gap-1.5 font-display text-xs font-bold uppercase tracking-wider text-muted-foreground">
+        <Compass className="h-3.5 w-3.5" />
+        ¿Vas por buen camino?
+      </span>
+      <h2 id="verdict-title" className={`mt-1 font-display text-xl font-bold ${style.text}`}>
+        {verdict.headline}
+      </h2>
+      <ul className="mt-3 space-y-2">
+        {verdict.checks.map((check) => {
+          const s = STATUS_STYLE[check.status];
+          return (
+            <li key={check.id} className="flex gap-2.5 text-sm">
+              <s.icon className={`mt-0.5 h-4 w-4 shrink-0 ${s.text}`} aria-label={check.status} />
+              <span className="min-w-0">
+                <span className="font-semibold text-foreground">{check.label}: </span>
+                <span className="text-muted-foreground">{check.detail}</span>
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+      {verdict.advice && (
+        <p className="mt-3 rounded-xl bg-background/60 p-3 text-sm text-foreground">
+          <span className="font-semibold">Qué cambiar: </span>
+          {verdict.advice}
+        </p>
+      )}
+      <p className="mt-2 text-[11px] text-muted-foreground">
+        Con tus datos de MacroQuest · objetivo de {GOAL_LABEL[verdict.goal]}
+      </p>
+    </section>
+  );
+}
+
 export function ProgresoPage() {
-  const { profile, openCoachWithPrompt } = useApp();
+  const { profile, openCoachWithPrompt, account, setView } = useApp();
+  const verdict = getWeeklyVerdict();
   const lifts = getMainLifts();
   const [selectedLift, setSelectedLift] = useState<LiftId>("banca");
 
@@ -30,10 +98,10 @@ export function ProgresoPage() {
   const stagnation = getStagnationAlert(selectedLift);
   const recentPrs = getRecentPRs();
 
-  // Nutrición alineada por el final: la última semana de fuerza con la última de MacroQuest.
-  const nutritionOffset = nutrition.length - e1rmHistory.length;
-  const chartData = e1rmHistory.map((point, idx) => {
-    const nut = nutrition[nutritionOffset + idx];
+  // Nutrición de la misma semana (las dos van de lunes a domingo y se etiquetan dd/MM).
+  const nutritionByWeek = new Map(nutrition.map((n) => [n.week, n]));
+  const chartData = e1rmHistory.map((point) => {
+    const nut = nutritionByWeek.get(point.week);
     return {
       week: point.week,
       e1rm: point.e1rmKg,
@@ -71,6 +139,34 @@ export function ProgresoPage() {
           })}
         </div>
       </section>
+
+      {verdict ? (
+        <VerdictCard verdict={verdict} />
+      ) : (
+        profile.macroQuestSync && (
+          <section className="rounded-2xl border border-dashed border-border p-4">
+            <p className="flex items-center gap-1.5 font-display text-sm font-bold text-foreground">
+              <Compass className="h-4 w-4 text-primary" />
+              ¿Vas por buen camino?
+            </p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {account.user
+                ? "Registra comidas y pesajes en MacroQuest con esta cuenta y aquí verás si tu fuerza, tu peso y tu nutrición van en la misma dirección."
+                : "Entra con tu cuenta de MacroQuest para cruzar tu fuerza con tu nutrición y tu peso."}
+            </p>
+            {!account.user && account.enabled && (
+              <button
+                type="button"
+                onClick={() => setView("perfil")}
+                className="mt-3 inline-flex min-h-[48px] items-center gap-1.5 rounded-xl border border-primary/50 bg-primary/15 px-4 font-display text-sm font-bold text-primary"
+              >
+                Conectar en Perfil
+                <ArrowRight className="h-4 w-4" />
+              </button>
+            )}
+          </section>
+        )
+      )}
 
       {stagnation && (
         <section className="rounded-2xl border border-destructive/50 bg-destructive/10 p-4">
@@ -138,7 +234,7 @@ export function ProgresoPage() {
                   orientation="right"
                   stroke="var(--chart-2)"
                   fontSize={10}
-                  domain={[100, 200]}
+                  domain={["dataMin - 10", "dataMax + 10"]}
                   hide
                 />
                 <Tooltip

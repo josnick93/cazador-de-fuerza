@@ -2,6 +2,7 @@ import "./lib/error-capture";
 
 import { consumeLastCapturedError } from "./lib/error-capture";
 import { renderErrorPage } from "./lib/error-page";
+import { handleApi, workerEnv } from "./worker";
 
 type ServerEntry = {
   fetch: (request: Request, env: unknown, ctx: unknown) => Promise<Response> | Response;
@@ -49,6 +50,10 @@ function isH3SwallowedErrorBody(body: string): boolean {
 // twice and renders garbled.
 export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
+    // La API va antes que la app (como el Worker de MacroQuest).
+    if (new URL(request.url).pathname.startsWith("/api/")) {
+      return handleApi(request, workerEnv(request));
+    }
     try {
       const handler = await getServerEntry();
       const response = await handler.fetch(request, env, ctx);

@@ -2,6 +2,7 @@ import { useLayoutEffect } from "react";
 import { Shield } from "lucide-react";
 import { useApp, type AppView } from "@/components/AppContext";
 import { MobileLayout } from "@/components/MobileLayout";
+import { BibliotecaPage } from "@/pages/BibliotecaPage";
 import { CoachPage } from "@/pages/CoachPage";
 import { EntrenoActivoPage } from "@/pages/EntrenoActivoPage";
 import { HoyPage } from "@/pages/HoyPage";
@@ -20,6 +21,8 @@ function renderView(view: AppView) {
       return <ProgresoPage />;
     case "plan":
       return <PlanPage />;
+    case "biblioteca":
+      return <BibliotecaPage />;
     case "coach":
       return <CoachPage />;
     case "perfil":
@@ -31,7 +34,7 @@ function renderView(view: AppView) {
 }
 
 export function AppShell() {
-  const { profile, view, hydrated } = useApp();
+  const { profile, view, hydrated, dataVersion } = useApp();
   const activeView: AppView = profile.onboardingCompleted ? view : "onboarding";
 
   // Layout effect: corre antes que los efectos de la página (p. ej. autoscroll del chat).
@@ -51,5 +54,11 @@ export function AppShell() {
     );
   }
 
-  return <MobileLayout>{renderView(activeView)}</MobileLayout>;
+  // Al llegar datos de otro dispositivo se vuelven a montar las pantallas (salvo el entreno en curso).
+  const viewKey = activeView === "entreno" ? "entreno" : `${activeView}-${dataVersion}`;
+  return (
+    <MobileLayout>
+      <div key={viewKey}>{renderView(activeView)}</div>
+    </MobileLayout>
+  );
 }

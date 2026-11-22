@@ -3,6 +3,8 @@ export const STORAGE_KEYS = {
   profile: "ironquest_profile_v1",
   mesocycle: "ironquest_mesocycle_v1",
   workouts: "ironquest_workouts_v1",
+  /** Copia local de los datos de MacroQuest (no se sincroniza: se vuelve a pedir). */
+  nutrition: "ironquest_nutrition_v1",
 } as const;
 
 function storage(): Storage | null {

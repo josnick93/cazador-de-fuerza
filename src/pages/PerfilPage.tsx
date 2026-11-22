@@ -1,7 +1,20 @@
 import { useState } from "react";
-import { Check, Crown, Link2, RotateCcw, Shield, User } from "lucide-react";
+import {
+  AlertTriangle,
+  Check,
+  Cloud,
+  Crown,
+  Link2,
+  LogIn,
+  LogOut,
+  RefreshCw,
+  RotateCcw,
+  Shield,
+  User,
+} from "lucide-react";
 import { useApp } from "@/components/AppContext";
 import { Switch } from "@/components/ui/switch";
+import { LOGIN_URL, logout } from "@/services/authService";
 import { regenerateMesocycle } from "@/services/strengthService";
 import type { Goal, WeightUnit } from "@/types";
 
@@ -20,6 +33,23 @@ const EQUIPMENT_LABEL = {
   casa: "Casa",
 } as const;
 
+const LOGIN_MESSAGES = {
+  ok: "Sesión iniciada. ¡Bienvenido, Cazador!",
+  cancelado: "Has cancelado el inicio de sesión.",
+  error: "No se pudo iniciar sesión. Inténtalo de nuevo.",
+} as const;
+
+function syncLabel(state: string, lastSyncAt: string | null): string {
+  if (state === "syncing") return "Sincronizando…";
+  if (state === "error") return "No se pudo sincronizar. Se reintentará solo.";
+  if (!lastSyncAt) return "Pendiente de sincronizar";
+  const d = new Date(lastSyncAt);
+  const hh = d.getHours().toString().padStart(2, "0");
+  const mm = d.getMinutes().toString().padStart(2, "0");
+  const today = new Date().toDateString() === d.toDateString();
+  return `Sincronizado ${today ? "hoy" : d.toLocaleDateString("es-ES")} a las ${hh}:${mm}`;
+}
+
 const PREMIUM_PERKS = [
   "Coach IA sin límite de consultas",
   "Revisión semanal con datos de MacroQuest",
@@ -32,7 +62,17 @@ function toDisplayWeight(kg: number, unit: WeightUnit): string {
 }
 
 export function PerfilPage() {
-  const { profile, updateProfile, setView } = useApp();
+  const {
+    profile,
+    updateProfile,
+    setView,
+    account,
+    refreshAccount,
+    loginResult,
+    sync,
+    syncData,
+    adoptAccountData,
+  } = useApp();
   const [name, setName] = useState(profile.name);
   const [bodyweight, setBodyweight] = useState(() =>
     toDisplayWeight(profile.bodyweightKg, profile.unit),
@@ -66,6 +106,11 @@ export function PerfilPage() {
     regenerateMesocycle(updateProfile({ goal }));
   };
 
+  const signOut = async () => {
+    await logout().catch(() => undefined);
+    await refreshAccount();
+  };
+
   const xpPct = Math.min(100, Math.round((profile.xp / profile.nextLevelXp) * 100));
 
   return (
@@ -95,6 +140,106 @@ export function PerfilPage() {
           <div className="h-2 w-full overflow-hidden rounded-full bg-surface">
             <div className="h-full rounded-full bg-primary" style={{ width: `${xpPct}%` }} />
           </div>
+        </div>
+      </section>
+
+      <section className="space-y-3" aria-labelledby="perfil-cuenta">
+        <h2
+          id="perfil-cuenta"
+          className="flex items-center gap-2 font-display text-base font-bold uppercase tracking-wider text-foreground"
+        >
+          <Cloud className="h-4 w-4 text-primary" />
+          Cuenta
+        </h2>
+        {loginResult && (
+          <p
+            role="status"
+            className={`rounded-xl border px-3.5 py-2.5 text-sm ${
+              loginResult === "ok"
+                ? "border-success/40 bg-success/10 text-success"
+                : "border-border bg-surface text-muted-foreground"
+            }`}
+          >
+            {LOGIN_MESSAGES[loginResult]}
+          </p>
+        )}
+        <div className="rounded-2xl border border-border bg-card p-4">
+          {account.user ? (
+            <div className="space-y-3">
+              <div className="min-w-0">
+                <p className="text-xs text-muted-foreground">Conectado con Google</p>
+                <p className="truncate font-semibold text-foreground">{account.user.email}</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Es la misma cuenta que usas en MacroQuest.
+                </p>
+              </div>
+              {sync.state === "conflict" ? (
+                <div
+                  role="alert"
+                  className="space-y-2 rounded-xl border border-gold/40 bg-gold/10 p-3"
+                >
+                  <p className="flex gap-2 text-sm text-foreground">
+                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-gold" />
+                    Los datos de este dispositivo son de otra cuenta y no se mezclan.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={adoptAccountData}
+                    className="flex min-h-[48px] w-full items-center justify-center rounded-xl bg-gold font-display text-sm font-bold text-gold-foreground"
+                  >
+                    Usar los datos de esta cuenta
+                  </button>
+                  <p className="text-xs text-muted-foreground">
+                    Se borran los datos de este dispositivo y se bajan los de {account.user.email}.
+                  </p>
+                </div>
+              ) : (
+                <div className="flex items-center justify-between gap-2 rounded-xl bg-surface px-3 py-2">
+                  <span role="status" className="text-xs text-muted-foreground">
+                    {syncLabel(sync.state, sync.lastSyncAt)}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => void syncData()}
+                    disabled={sync.state === "syncing"}
+                    aria-label="Sincronizar ahora"
+                    className="grid h-12 w-12 shrink-0 place-items-center rounded-xl text-primary disabled:opacity-50"
+                  >
+                    <RefreshCw
+                      className={`h-4 w-4 ${sync.state === "syncing" ? "animate-spin" : ""}`}
+                    />
+                  </button>
+                </div>
+              )}
+              <button
+                type="button"
+                onClick={signOut}
+                className="flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl border border-border bg-surface font-display text-sm font-bold text-foreground"
+              >
+                <LogOut className="h-4 w-4 text-primary" />
+                Cerrar sesión
+              </button>
+            </div>
+          ) : account.enabled ? (
+            <div className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                Entra con la misma cuenta de Google que en MacroQuest para guardar tus entrenos en
+                la nube y cruzarlos con tu nutrición.
+              </p>
+              <a
+                href={LOGIN_URL}
+                className="flex min-h-[52px] w-full items-center justify-center gap-2 rounded-xl bg-primary font-display text-base font-bold text-primary-foreground system-glow"
+              >
+                <LogIn className="h-5 w-5" />
+                Entrar con Google
+              </a>
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              Tus datos se guardan en este dispositivo. El inicio de sesión estará disponible en
+              fuerza.macroquestapp.com.
+            </p>
+          )}
         </div>
       </section>
 

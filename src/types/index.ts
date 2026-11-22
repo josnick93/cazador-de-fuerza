@@ -58,6 +58,17 @@ export interface Exercise {
   defaultRestSec: number;
 }
 
+/** Ficha de técnica de un ejercicio (biblioteca). */
+export interface ExerciseGuide {
+  exerciseId: string;
+  summary: string;
+  steps: string[];
+  tips: string[];
+  mistakes: string[];
+  /** Rutas públicas de las fotos (posición inicial y final). Vacío si no hay. */
+  images: string[];
+}
+
 export interface PlannedExercise {
   exerciseId: string;
   sets: number;

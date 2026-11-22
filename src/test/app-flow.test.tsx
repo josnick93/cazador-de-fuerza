@@ -5,7 +5,7 @@ import { AppProvider } from "@/components/AppContext";
 import { AppShell } from "@/components/AppShell";
 import { STORAGE_KEYS } from "@/services/storage";
 import { getWorkoutLogs } from "@/services/strengthService";
-import { seedLogs, seedProfile, weeklyBenchLogs } from "./fixtures";
+import { seedLogs, seedMacroQuest, seedProfile, weeklyBenchLogs } from "./fixtures";
 
 function renderApp() {
   return render(
@@ -19,6 +19,29 @@ function nav() {
   return within(screen.getByRole("navigation", { name: "Navegación principal" }));
 }
 
+/** Servidor de login simulado: /api/auth/me devuelve `user` hasta que se cierra sesión. */
+function stubAuthServer(user: { id: string; email: string; name: string | null } | null) {
+  let current = user;
+  const calls: string[] = [];
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (url: string, init?: RequestInit) => {
+      calls.push(`${init?.method ?? "GET"} ${url}`);
+      if (url === "/api/auth/logout") current = null;
+      if (url === "/api/nutrition") {
+        return Response.json({ connected: false, goal: null, days: [], weights: [] });
+      }
+      if (url === "/api/sync") {
+        return Response.json({ epoch: "e1", cursor: 0, changes: [], more: false });
+      }
+      return new Response(JSON.stringify({ enabled: true, user: current }), {
+        headers: { "content-type": "application/json" },
+      });
+    }),
+  );
+  return calls;
+}
+
 describe("Flujo de la app", () => {
   beforeEach(() => {
     window.localStorage.clear();
@@ -27,6 +50,7 @@ describe("Flujo de la app", () => {
   afterEach(() => {
     cleanup();
     vi.useRealTimers();
+    vi.unstubAllGlobals();
   });
 
   it("un usuario nuevo empieza en el onboarding y al terminarlo recibe su plan", () => {
@@ -81,8 +105,8 @@ describe("Flujo de la app", () => {
     fireEvent.click(screen.getByRole("button", { name: /Empezar entreno/ }));
     expect(screen.getAllByText("77,5")).toHaveLength(3);
 
-    fireEvent.click(screen.getByRole("button", { name: /Cambiar/ }));
-    fireEvent.click(screen.getByRole("button", { name: /Press Inclinado con Barra/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Máquina ocupada/ }));
+    fireEvent.click(screen.getByRole("button", { name: /^Press Inclinado con Barra/ }));
     expect(screen.getByRole("heading", { name: "Press Inclinado con Barra" })).toBeInTheDocument();
     expect(screen.getAllByText("65")).toHaveLength(3); // 77,5 × 0,85 → 65
 
@@ -92,6 +116,63 @@ describe("Flujo de la app", () => {
       exerciseId: "ex-press-inclinado",
       plannedExerciseId: "ex-banca-barra",
     });
+  });
+
+  it("desde 'Máquina ocupada' abre la técnica de una alternativa y la usa", () => {
+    seedProfile();
+    renderApp();
+    fireEvent.click(screen.getByRole("button", { name: /Empezar entreno/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Máquina ocupada/ }));
+    expect(screen.getByText("Mismo movimiento")).toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Ver técnica de Press de Pecho en Máquina" }),
+    );
+    const sheet = within(screen.getByRole("dialog", { name: "Press de Pecho en Máquina" }));
+    expect(sheet.getByText("Cómo hacerlo")).toBeInTheDocument();
+    expect(sheet.getByAltText(/posición inicial/)).toHaveAttribute(
+      "src",
+      "/exercises/ex-press-maquina/0.webp",
+    );
+
+    fireEvent.click(sheet.getByRole("button", { name: "Usar este ejercicio" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Press de Pecho en Máquina" })).toBeInTheDocument();
+  });
+
+  it("la técnica del ejercicio actual no ofrece usarlo de nuevo", () => {
+    seedProfile();
+    renderApp();
+    fireEvent.click(screen.getByRole("button", { name: /Empezar entreno/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Técnica/ }));
+    const sheet = within(screen.getByRole("dialog", { name: "Press Banca con Barra" }));
+    expect(sheet.queryByRole("button", { name: "Usar este ejercicio" })).not.toBeInTheDocument();
+    fireEvent.click(sheet.getByRole("button", { name: /Press Banca con Mancuernas/ }));
+    expect(screen.getByRole("dialog", { name: "Press Banca con Mancuernas" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Usar este ejercicio" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Volver al ejercicio anterior" }));
+    expect(screen.getByRole("dialog", { name: "Press Banca con Barra" })).toBeInTheDocument();
+  });
+
+  it("Biblioteca busca sin acentos, filtra y abre la ficha", () => {
+    seedProfile();
+    renderApp();
+    fireEvent.click(nav().getByRole("button", { name: "Biblioteca" }));
+    expect(screen.getByRole("heading", { name: "Ejercicios" })).toBeInTheDocument();
+
+    fireEvent.change(screen.getByPlaceholderText(/Buscar/), { target: { value: "jalon" } });
+    expect(screen.getByText("2 ejercicios")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Jalón al Pecho Agarre Neutro/ }));
+    const sheet = within(screen.getByRole("dialog", { name: "Jalón al Pecho Agarre Neutro" }));
+    expect(sheet.getByText("Errores comunes")).toBeInTheDocument();
+    fireEvent.click(sheet.getByRole("button", { name: "Cerrar ficha" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Borrar búsqueda" }));
+    fireEvent.click(screen.getByRole("button", { name: "Casa" }));
+    fireEvent.click(screen.getByRole("button", { name: "Hombros" }));
+    expect(screen.getByText("2 ejercicios")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Flexiones Pike/ })).toBeInTheDocument();
   });
 
   it("no marca la sesión como hecha si se termina sin series", () => {
@@ -135,6 +216,63 @@ describe("Flujo de la app", () => {
       vi.advanceTimersByTime(1000);
     });
     expect(log.getByText(/Tu Press Banca lleva 3 semanas/)).toBeInTheDocument();
+  });
+
+  it("Progreso muestra el veredicto con los datos de MacroQuest", () => {
+    seedProfile({ macroQuestSync: true });
+    seedLogs(weeklyBenchLogs([95, 97, 100, 103]));
+    seedMacroQuest({}, { protein: 90 });
+    renderApp();
+    fireEvent.click(nav().getByRole("button", { name: "Progreso" }));
+    const card = within(screen.getByRole("region", { name: "Algo está frenando tu progreso" }));
+    expect(card.getByText(/Qué cambiar:/)).toBeInTheDocument();
+    expect(card.getByText(/Sube la proteína/)).toBeInTheDocument();
+  });
+
+  it("Progreso sin MacroQuest invita a conectarlo", () => {
+    seedProfile({ macroQuestSync: true });
+    renderApp();
+    fireEvent.click(nav().getByRole("button", { name: "Progreso" }));
+    expect(screen.getByText(/Entra con tu cuenta de MacroQuest/)).toBeInTheDocument();
+  });
+
+  it("Perfil ofrece entrar con Google si el servidor tiene login", async () => {
+    stubAuthServer(null);
+    seedProfile();
+    renderApp();
+    fireEvent.click(screen.getByRole("button", { name: "Abrir perfil" }));
+    const link = await screen.findByRole("link", { name: /Entrar con Google/ });
+    expect(link).toHaveAttribute("href", "/api/auth/login");
+  });
+
+  it("con sesión muestra el correo y permite cerrarla", async () => {
+    const calls = stubAuthServer({ id: "g1", email: "ana@example.com", name: "Ana" });
+    seedProfile();
+    renderApp();
+    fireEvent.click(screen.getByRole("button", { name: "Abrir perfil" }));
+    expect(await screen.findByText("ana@example.com")).toBeInTheDocument();
+    expect(await screen.findByText(/Sincronizado hoy/)).toBeInTheDocument();
+    expect(calls).toContain("POST /api/sync");
+    fireEvent.click(screen.getByRole("button", { name: /Cerrar sesión/ }));
+    expect(await screen.findByRole("link", { name: /Entrar con Google/ })).toBeInTheDocument();
+    expect(calls).toContain("POST /api/auth/logout");
+  });
+
+  it("sin servidor de login la app sigue en local", () => {
+    seedProfile();
+    renderApp();
+    fireEvent.click(screen.getByRole("button", { name: "Abrir perfil" }));
+    expect(screen.getByText(/Tus datos se guardan en este dispositivo/)).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Entrar con Google/ })).not.toBeInTheDocument();
+  });
+
+  it("al volver del login abre Perfil con el resultado y limpia la URL", async () => {
+    stubAuthServer({ id: "g1", email: "ana@example.com", name: "Ana" });
+    window.history.pushState(null, "", "/?login=ok");
+    seedProfile();
+    renderApp();
+    expect(await screen.findByText(/Sesión iniciada/)).toBeInTheDocument();
+    expect(window.location.search).toBe("");
   });
 
   it("Perfil cambia unidades y permite rehacer el onboarding", () => {

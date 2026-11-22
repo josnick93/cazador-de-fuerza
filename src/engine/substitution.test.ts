@@ -26,11 +26,28 @@ describe("findAlternatives", () => {
     const gym = findAlternatives(ex("ex-banca-barra"), EXERCISE_CATALOG, "gimnasio").map(
       (e) => e.id,
     );
-    expect(gym).toEqual(["ex-press-inclinado", "ex-banca-mancuernas", "ex-flexiones-lastradas"]);
+    expect(gym).toEqual([
+      "ex-press-inclinado",
+      "ex-banca-mancuernas",
+      "ex-flexiones-lastradas",
+      "ex-press-maquina",
+      "ex-press-smith",
+      "ex-contractora",
+      "ex-cruce-poleas",
+    ]);
     const home = findAlternatives(ex("ex-banca-mancuernas"), EXERCISE_CATALOG, "casa").map(
       (e) => e.id,
     );
     expect(home).toEqual(["ex-flexiones-lastradas"]);
+  });
+
+  it("pone primero las del mismo patrón de movimiento", () => {
+    const alts = findAlternatives(ex("ex-sentadilla"), EXERCISE_CATALOG, "gimnasio");
+    const firstOther = alts.findIndex((e) => e.pattern !== "sentadilla");
+    expect(firstOther).toBeGreaterThan(0);
+    expect(alts.slice(0, firstOther).every((e) => e.pattern === "sentadilla")).toBe(true);
+    expect(alts.slice(firstOther).some((e) => e.pattern === "sentadilla")).toBe(false);
+    expect(alts.map((e) => e.id)).toContain("ex-sentadilla-hack");
   });
 });
 

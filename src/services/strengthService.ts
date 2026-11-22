@@ -1,4 +1,5 @@
 import { EXERCISE_CATALOG, MAIN_LIFTS } from "@/data/exercises";
+import { EXERCISE_GUIDES, GUIDE_IMAGES_CREDIT } from "@/data/exerciseGuides";
 import { DEFAULT_PROFILE } from "@/data/defaultProfile";
 import { generateMesocycle } from "@/engine/generator";
 import { allSets, bestE1rm, formatSet, relativeDayLabel, weeklyBestE1rm } from "@/engine/history";
@@ -10,11 +11,21 @@ import {
 } from "@/engine/progression";
 import { addXp, sessionXp } from "@/engine/xp";
 import { findAlternatives, substitutePlannedExercise } from "@/engine/substitution";
-import { MOCK_WEEKLY_NUTRITION } from "@/mocks/nutrition";
+import {
+  computeVerdict,
+  fallbackMacroGoal,
+  nutritionWeeks,
+  strengthTrend,
+  type Verdict,
+} from "@/engine/verdict";
+import { getCachedNutrition } from "@/services/nutritionService";
 import { MOCK_INITIAL_COACH_MESSAGES, MOCK_WEEKLY_REVIEW } from "@/mocks/workouts";
 import { uniqueId } from "@/lib/id";
 import { STORAGE_KEYS, readJson, removeKey, writeJson } from "@/services/storage";
+import { EPOCH, markDirty, resetSyncMeta } from "@/services/syncService";
 import type {
+  Equipment,
+  ExerciseGuide,
   CoachMessage,
   CoachWeeklyReview,
   Exercise,
@@ -61,6 +72,7 @@ export function getUserProfile(): UserProfile {
 
 export function saveUserProfile(profile: UserProfile): void {
   writeJson(STORAGE_KEYS.profile, profile);
+  markDirty("profile", "me");
 }
 
 // ── Ejercicios ──────────────────────────────────────────────────────────────
@@ -91,6 +103,59 @@ export function getAlternatives(exerciseId: string): Exercise[] {
   return current ? findAlternatives(current, EXERCISE_CATALOG, getUserProfile().equipment) : [];
 }
 
+export function getExerciseGuide(exerciseId: string): ExerciseGuide | null {
+  const content = EXERCISE_GUIDES[exerciseId];
+  if (!content) return null;
+  const { source, summary, steps, tips, mistakes } = content;
+  return {
+    exerciseId,
+    summary,
+    steps,
+    tips,
+    mistakes,
+    images: source ? [0, 1].map((i) => `/exercises/${exerciseId}/${i}.webp`) : [],
+  };
+}
+
+export interface LibraryFilters {
+  query?: string;
+  muscle?: MuscleGroup | "todos";
+  equipment?: Equipment | "todo";
+}
+
+const normalizeText = (text: string) =>
+  text
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+
+const MUSCLE_ORDER: MuscleGroup[] = ["Pecho", "Espalda", "Piernas", "Hombros", "Brazos", "Core"];
+
+/** Biblioteca filtrada por texto (sin acentos), músculo y equipamiento exacto; ordenada por músculo. */
+export function searchExerciseLibrary(filters: LibraryFilters = {}): Exercise[] {
+  const words = normalizeText(filters.query ?? "")
+    .split(/\s+/)
+    .filter(Boolean);
+  return EXERCISE_CATALOG.filter((ex) => {
+    if (filters.muscle && filters.muscle !== "todos" && ex.muscle !== filters.muscle) return false;
+    if (filters.equipment && filters.equipment !== "todo" && ex.equipment !== filters.equipment) {
+      return false;
+    }
+    const haystack = normalizeText(`${ex.name} ${ex.muscle}`);
+    return words.every((w) => haystack.includes(w));
+  }).sort((a, b) => MUSCLE_ORDER.indexOf(a.muscle) - MUSCLE_ORDER.indexOf(b.muscle));
+}
+
+/** Atribución de las fotos de la biblioteca. */
+export function getGuideImagesCredit() {
+  return GUIDE_IMAGES_CREDIT;
+}
+
+/** Miniatura (foto inicial) del ejercicio, o null si no tiene fotos. */
+export function getExerciseThumbnail(exerciseId: string): string | null {
+  return EXERCISE_GUIDES[exerciseId]?.source ? `/exercises/${exerciseId}/0.webp` : null;
+}
+
 /** Sustituye el ejercicio planificado recalculando la carga para el nuevo. */
 export function substituteExercise(
   planned: PlannedExercise,
@@ -112,6 +177,7 @@ export function getWorkoutLogs(): WorkoutLog[] {
 
 export function saveWorkoutLog(log: WorkoutLog): void {
   writeJson(STORAGE_KEYS.workouts, [...getWorkoutLogs().filter((l) => l.id !== log.id), log]);
+  markDirty("workouts", log.id);
 }
 
 /** Mejor e1RM registrado; para los básicos, el 1RM inicial del onboarding cuenta como marca. */
@@ -142,17 +208,19 @@ export function getKnownE1rms(): Record<string, number> {
 
 export function getActiveMesocycle(): Mesocycle {
   const saved = readJson<Mesocycle | null>(STORAGE_KEYS.mesocycle, null);
-  return saved ?? regenerateMesocycle(getUserProfile());
+  // Generado solo porque faltaba: pierde contra el de la nube (no es una decisión del usuario).
+  return saved ?? regenerateMesocycle(getUserProfile(), { auto: true });
 }
 
-export function saveMesocycle(mesocycle: Mesocycle): void {
+export function saveMesocycle(mesocycle: Mesocycle, { auto = false } = {}): void {
   writeJson(STORAGE_KEYS.mesocycle, mesocycle);
+  markDirty("mesocycle", "me", auto ? EPOCH : undefined);
 }
 
 /** Crea un mesociclo nuevo para el perfil usando el historial real como referencia de cargas. */
-export function regenerateMesocycle(profile: UserProfile): Mesocycle {
+export function regenerateMesocycle(profile: UserProfile, { auto = false } = {}): Mesocycle {
   const mesocycle = generateMesocycle(profile, EXERCISE_CATALOG, { knownE1rm: getKnownE1rms() });
-  saveMesocycle(mesocycle);
+  saveMesocycle(mesocycle, { auto });
   return mesocycle;
 }
 
@@ -353,8 +421,41 @@ export function getE1rmHistory(liftId: LiftId): WeeklyE1rmPoint[] {
   return exerciseId ? weeklyBestE1rm(getWorkoutLogs(), [exerciseId]) : [];
 }
 
-export function getWeeklyNutrition(): WeeklyNutritionPoint[] {
-  return MOCK_WEEKLY_NUTRITION;
+/** Datos de MacroQuest si el usuario tiene activada la sincronización y los hay. */
+function macroQuestSnapshot() {
+  if (!getUserProfile().macroQuestSync) return null;
+  const cached = getCachedNutrition();
+  return cached?.snapshot.connected ? cached.snapshot : null;
+}
+
+/** Nutrición semanal de MacroQuest (8 semanas, solo las que tienen registros). Vacío sin MacroQuest. */
+export function getWeeklyNutrition(today = new Date()): WeeklyNutritionPoint[] {
+  const snapshot = macroQuestSnapshot();
+  if (!snapshot) return [];
+  return nutritionWeeks(snapshot, today)
+    .filter((w) => w.kcal !== null)
+    .map((w, i) => ({
+      week: w.label,
+      weekIndex: i + 1,
+      proteinG: w.protein ?? 0,
+      kcal: w.kcal ?? 0,
+    }));
+}
+
+/** Veredicto semanal cruzando fuerza y MacroQuest; null sin datos de MacroQuest. */
+export function getWeeklyVerdict(today = new Date()): Verdict | null {
+  const snapshot = macroQuestSnapshot();
+  if (!snapshot) return null;
+  const profile = getUserProfile();
+  const liftIds = MAIN_LIFTS.map((l) => liftExerciseId(l.id)).filter((id) => id !== undefined);
+  return computeVerdict({
+    goal: snapshot.goal ?? fallbackMacroGoal(profile.goal),
+    trainingGoal: profile.goal,
+    nutrition: snapshot,
+    strength: strengthTrend(getWorkoutLogs(), liftIds, today),
+    bodyweightKg: profile.bodyweightKg,
+    today,
+  });
 }
 
 /** Un PR por ejercicio y sesión (su mejor serie marcada como PR), los más recientes primero. */
@@ -393,6 +494,9 @@ const avg = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.le
 /** Causa probable cruzando con nutrición (MacroQuest): caída de proteína/kcal o fatiga. */
 function explainPlateau(weeksStalled: number): string {
   const nutrition = getWeeklyNutrition();
+  if (nutrition.length <= weeksStalled) {
+    return "Conecta MacroQuest para saber si la causa es tu nutrición. Si comes bien, probablemente acumulas fatiga: valora una descarga.";
+  }
   const recent = nutrition.slice(-weeksStalled);
   const before = nutrition.slice(0, -weeksStalled);
   const proteinBefore = Math.round(avg(before.map((n) => n.proteinG)));
@@ -453,4 +557,5 @@ export function getCoachReply(prompt: string): string {
 /** Borra todos los datos locales (perfil, mesociclo e historial). */
 export function resetLocalData(): void {
   Object.values(STORAGE_KEYS).forEach(removeKey);
+  resetSyncMeta();
 }
