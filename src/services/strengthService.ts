@@ -1,4 +1,5 @@
 import { EXERCISE_CATALOG, MAIN_LIFTS } from "@/data/exercises";
+import { EXERCISE_GUIDES, GUIDE_IMAGES_CREDIT } from "@/data/exerciseGuides";
 import { DEFAULT_PROFILE } from "@/data/defaultProfile";
 import { generateMesocycle } from "@/engine/generator";
 import { allSets, bestE1rm, formatSet, relativeDayLabel, weeklyBestE1rm } from "@/engine/history";
@@ -15,6 +16,8 @@ import { MOCK_INITIAL_COACH_MESSAGES, MOCK_WEEKLY_REVIEW } from "@/mocks/workout
 import { uniqueId } from "@/lib/id";
 import { STORAGE_KEYS, readJson, removeKey, writeJson } from "@/services/storage";
 import type {
+  Equipment,
+  ExerciseGuide,
   CoachMessage,
   CoachWeeklyReview,
   Exercise,
@@ -89,6 +92,59 @@ function liftExerciseId(liftId: LiftId): string | undefined {
 export function getAlternatives(exerciseId: string): Exercise[] {
   const current = getExerciseById(exerciseId);
   return current ? findAlternatives(current, EXERCISE_CATALOG, getUserProfile().equipment) : [];
+}
+
+export function getExerciseGuide(exerciseId: string): ExerciseGuide | null {
+  const content = EXERCISE_GUIDES[exerciseId];
+  if (!content) return null;
+  const { source, summary, steps, tips, mistakes } = content;
+  return {
+    exerciseId,
+    summary,
+    steps,
+    tips,
+    mistakes,
+    images: source ? [0, 1].map((i) => `/exercises/${exerciseId}/${i}.webp`) : [],
+  };
+}
+
+export interface LibraryFilters {
+  query?: string;
+  muscle?: MuscleGroup | "todos";
+  equipment?: Equipment | "todo";
+}
+
+const normalizeText = (text: string) =>
+  text
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+
+const MUSCLE_ORDER: MuscleGroup[] = ["Pecho", "Espalda", "Piernas", "Hombros", "Brazos", "Core"];
+
+/** Biblioteca filtrada por texto (sin acentos), músculo y equipamiento exacto; ordenada por músculo. */
+export function searchExerciseLibrary(filters: LibraryFilters = {}): Exercise[] {
+  const words = normalizeText(filters.query ?? "")
+    .split(/\s+/)
+    .filter(Boolean);
+  return EXERCISE_CATALOG.filter((ex) => {
+    if (filters.muscle && filters.muscle !== "todos" && ex.muscle !== filters.muscle) return false;
+    if (filters.equipment && filters.equipment !== "todo" && ex.equipment !== filters.equipment) {
+      return false;
+    }
+    const haystack = normalizeText(`${ex.name} ${ex.muscle}`);
+    return words.every((w) => haystack.includes(w));
+  }).sort((a, b) => MUSCLE_ORDER.indexOf(a.muscle) - MUSCLE_ORDER.indexOf(b.muscle));
+}
+
+/** Atribución de las fotos de la biblioteca. */
+export function getGuideImagesCredit() {
+  return GUIDE_IMAGES_CREDIT;
+}
+
+/** Miniatura (foto inicial) del ejercicio, o null si no tiene fotos. */
+export function getExerciseThumbnail(exerciseId: string): string | null {
+  return EXERCISE_GUIDES[exerciseId]?.source ? `/exercises/${exerciseId}/0.webp` : null;
 }
 
 /** Sustituye el ejercicio planificado recalculando la carga para el nuevo. */

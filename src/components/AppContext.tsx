@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useRef, useState, type ReactNode 
 import { getDefaultProfile, getUserProfile, saveUserProfile } from "@/services/strengthService";
 import type { UserProfile } from "@/types";
 
-export type MainTab = "hoy" | "progreso" | "plan" | "coach";
+export type MainTab = "hoy" | "progreso" | "plan" | "biblioteca" | "coach";
 export type AppView = MainTab | "entreno" | "perfil" | "onboarding";
 
 interface AppContextValue {

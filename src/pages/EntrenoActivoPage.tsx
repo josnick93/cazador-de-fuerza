@@ -3,7 +3,9 @@ import {
   ArrowLeft,
   ArrowRight,
   BarChart3,
+  BookOpen,
   Check,
+  Info,
   Equal,
   Minus,
   Plus,
@@ -14,6 +16,8 @@ import {
   X,
 } from "lucide-react";
 import { useApp } from "@/components/AppContext";
+import { ExerciseGuideSheet } from "@/components/ExerciseGuideSheet";
+import { ExerciseThumb } from "@/components/ExerciseThumb";
 import { RestTimerBar } from "@/components/RestTimerBar";
 import {
   calculateE1rm,
@@ -26,7 +30,13 @@ import {
   substituteExercise,
 } from "@/services/strengthService";
 import { parseRepRange } from "@/engine/progression";
-import type { ActiveSetRow, PlannedExercise, ProgressionNote, WorkoutSummary } from "@/types";
+import type {
+  ActiveSetRow,
+  Exercise,
+  PlannedExercise,
+  ProgressionNote,
+  WorkoutSummary,
+} from "@/types";
 
 const RIR_OPTIONS = [0, 1, 2, 3, 4] as const;
 
@@ -72,6 +82,7 @@ export function EntrenoActivoPage() {
   const [restSeconds, setRestSeconds] = useState(0);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [showSwapModal, setShowSwapModal] = useState(false);
+  const [guideId, setGuideId] = useState<string | null>(null);
   const [summary, setSummary] = useState<WorkoutSummary | null>(null);
 
   useEffect(() => {
@@ -142,6 +153,7 @@ export function EntrenoActivoPage() {
       ),
     }));
     setShowSwapModal(false);
+    setGuideId(null);
   };
 
   const finishWorkout = () => {
@@ -299,15 +311,27 @@ export function EntrenoActivoPage() {
 
   if (!currentExercise || !currentPlanned) return null;
 
+  const originalExercise = originalPlanned
+    ? getExerciseById(originalPlanned.exerciseId)
+    : undefined;
   const swapOptions = [
     currentExercise,
-    ...(originalPlanned && originalPlanned.exerciseId !== currentExercise.id
-      ? [getExerciseById(originalPlanned.exerciseId)].filter((e) => e !== undefined)
-      : []),
+    ...(originalExercise && originalExercise.id !== currentExercise.id ? [originalExercise] : []),
     ...getAlternatives(originalPlanned?.exerciseId ?? currentExercise.id).filter(
       (e) => e.id !== currentExercise.id,
     ),
   ];
+  const basePattern = (originalExercise ?? currentExercise).pattern;
+  const swapGroups: { title: string; items: Exercise[] }[] = [
+    { title: "Mismo movimiento", items: swapOptions.filter((e) => e.pattern === basePattern) },
+    { title: "Mismo músculo", items: swapOptions.filter((e) => e.pattern !== basePattern) },
+  ].filter((g) => g.items.length > 0);
+  const projectedKg = (exerciseId: string) =>
+    exerciseId === currentExercise.id
+      ? currentPlanned.targetKg
+      : originalPlanned
+        ? substituteExercise(originalPlanned, exerciseId).targetKg
+        : currentPlanned.targetKg;
   const elapsedMins = Math.floor(elapsedSeconds / 60);
   const elapsedSecs = elapsedSeconds % 60;
 
@@ -341,7 +365,8 @@ export function EntrenoActivoPage() {
 
       <div className="space-y-4 px-4 py-4">
         <section className="system-panel rounded-2xl p-4">
-          <div className="flex items-start justify-between gap-2">
+          <div className="flex items-start gap-3">
+            <ExerciseThumb exerciseId={currentExercise.id} className="h-14 w-16" />
             <div className="min-w-0">
               <span className="text-xs font-semibold uppercase tracking-wider text-primary">
                 {currentExercise.muscle}
@@ -353,13 +378,23 @@ export function EntrenoActivoPage() {
                 {currentPlanned.lastSessionText}
               </p>
             </div>
+          </div>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => setGuideId(currentExercise.id)}
+              className="flex min-h-[48px] items-center justify-center gap-1.5 whitespace-nowrap rounded-xl border border-border bg-surface px-2 text-[13px] font-semibold text-foreground"
+            >
+              <BookOpen className="h-4 w-4 text-primary" />
+              Técnica
+            </button>
             <button
               type="button"
               onClick={() => setShowSwapModal(true)}
-              className="flex min-h-[48px] shrink-0 items-center gap-1.5 rounded-xl border border-border bg-surface px-3 text-xs font-semibold text-foreground"
+              className="flex min-h-[48px] items-center justify-center gap-1.5 whitespace-nowrap rounded-xl border border-border bg-surface px-2 text-[13px] font-semibold text-foreground"
             >
               <RefreshCw className="h-4 w-4 text-primary" />
-              Cambiar
+              Máquina ocupada
             </button>
           </div>
         </section>
@@ -524,51 +559,88 @@ export function EntrenoActivoPage() {
       />
 
       {showSwapModal && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-background/80 p-4 backdrop-blur-sm">
-          <div className="system-panel w-full max-w-[366px] rounded-2xl p-4">
-            <div className="mb-3 flex items-center justify-between">
-              <h2 className="font-display text-lg font-bold text-foreground">
-                Cambiar ejercicio ({currentExercise.muscle})
-              </h2>
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-background/80 backdrop-blur-sm"
+          onClick={() => setShowSwapModal(false)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="swap-title"
+            onClick={(e) => e.stopPropagation()}
+            className="system-panel max-h-[85dvh] w-full max-w-[390px] overflow-y-auto rounded-t-2xl"
+          >
+            <div className="sticky top-0 z-10 flex items-center justify-between gap-2 border-b border-border bg-card/95 px-4 py-3 backdrop-blur-md">
+              <div className="min-w-0">
+                <h2 id="swap-title" className="font-display text-lg font-bold text-foreground">
+                  Cambiar ejercicio
+                </h2>
+                <p className="text-xs text-muted-foreground">
+                  {currentExercise.muscle} · el peso se recalcula solo
+                </p>
+              </div>
               <button
                 type="button"
                 onClick={() => setShowSwapModal(false)}
                 aria-label="Cerrar"
-                className="grid h-12 w-12 place-items-center rounded-xl bg-surface text-foreground"
+                className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-surface text-foreground"
               >
                 <X className="h-5 w-5" />
               </button>
             </div>
-            <div className="space-y-2">
-              {swapOptions.map((alt) => {
-                const selected = alt.id === currentExercise.id;
-                const kg = selected
-                  ? currentPlanned.targetKg
-                  : originalPlanned
-                    ? substituteExercise(originalPlanned, alt.id).targetKg
-                    : currentPlanned.targetKg;
-                return (
-                  <button
-                    key={alt.id}
-                    type="button"
-                    onClick={() => handleSwapExercise(alt.id)}
-                    className={`flex min-h-[52px] w-full items-center justify-between gap-2 rounded-xl border px-3.5 text-left text-sm font-semibold ${
-                      selected
-                        ? "border-primary bg-primary/15 text-primary"
-                        : "border-border bg-surface text-foreground"
-                    }`}
-                  >
-                    <span className="min-w-0 flex-1">{alt.name}</span>
-                    <span className="shrink-0 text-xs text-muted-foreground">
-                      {formatWeight(kg, profile.unit)}
-                    </span>
-                    {selected && <Check className="h-4 w-4 shrink-0" />}
-                  </button>
-                );
-              })}
+            <div className="space-y-4 px-4 pb-6 pt-3">
+              {swapGroups.map((group) => (
+                <section key={group.title}>
+                  <h3 className="mb-2 font-display text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                    {group.title}
+                  </h3>
+                  <ul className="space-y-2">
+                    {group.items.map((alt) => {
+                      const selected = alt.id === currentExercise.id;
+                      return (
+                        <li key={alt.id} className="flex items-stretch gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleSwapExercise(alt.id)}
+                            className={`flex min-h-[56px] min-w-0 flex-1 items-center gap-2.5 rounded-xl border p-2 text-left text-sm font-semibold ${
+                              selected
+                                ? "border-primary bg-primary/15 text-primary"
+                                : "border-border bg-surface text-foreground"
+                            }`}
+                          >
+                            <ExerciseThumb exerciseId={alt.id} className="h-10 w-12" />
+                            <span className="min-w-0 flex-1">{alt.name}</span>
+                            <span className="shrink-0 text-xs text-muted-foreground">
+                              {formatWeight(projectedKg(alt.id), profile.unit)}
+                            </span>
+                            {selected && <Check className="h-4 w-4 shrink-0" />}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setGuideId(alt.id)}
+                            aria-label={`Ver técnica de ${alt.name}`}
+                            className="grid w-12 shrink-0 place-items-center rounded-xl border border-border bg-surface text-muted-foreground"
+                          >
+                            <Info className="h-5 w-5" />
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </section>
+              ))}
             </div>
           </div>
         </div>
+      )}
+
+      {guideId && (
+        <ExerciseGuideSheet
+          exerciseId={guideId}
+          activeExerciseId={currentExercise.id}
+          onClose={() => setGuideId(null)}
+          onUse={handleSwapExercise}
+        />
       )}
     </div>
   );

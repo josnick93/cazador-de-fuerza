@@ -81,8 +81,8 @@ describe("Flujo de la app", () => {
     fireEvent.click(screen.getByRole("button", { name: /Empezar entreno/ }));
     expect(screen.getAllByText("77,5")).toHaveLength(3);
 
-    fireEvent.click(screen.getByRole("button", { name: /Cambiar/ }));
-    fireEvent.click(screen.getByRole("button", { name: /Press Inclinado con Barra/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Máquina ocupada/ }));
+    fireEvent.click(screen.getByRole("button", { name: /^Press Inclinado con Barra/ }));
     expect(screen.getByRole("heading", { name: "Press Inclinado con Barra" })).toBeInTheDocument();
     expect(screen.getAllByText("65")).toHaveLength(3); // 77,5 × 0,85 → 65
 
@@ -92,6 +92,63 @@ describe("Flujo de la app", () => {
       exerciseId: "ex-press-inclinado",
       plannedExerciseId: "ex-banca-barra",
     });
+  });
+
+  it("desde 'Máquina ocupada' abre la técnica de una alternativa y la usa", () => {
+    seedProfile();
+    renderApp();
+    fireEvent.click(screen.getByRole("button", { name: /Empezar entreno/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Máquina ocupada/ }));
+    expect(screen.getByText("Mismo movimiento")).toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Ver técnica de Press de Pecho en Máquina" }),
+    );
+    const sheet = within(screen.getByRole("dialog", { name: "Press de Pecho en Máquina" }));
+    expect(sheet.getByText("Cómo hacerlo")).toBeInTheDocument();
+    expect(sheet.getByAltText(/posición inicial/)).toHaveAttribute(
+      "src",
+      "/exercises/ex-press-maquina/0.webp",
+    );
+
+    fireEvent.click(sheet.getByRole("button", { name: "Usar este ejercicio" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Press de Pecho en Máquina" })).toBeInTheDocument();
+  });
+
+  it("la técnica del ejercicio actual no ofrece usarlo de nuevo", () => {
+    seedProfile();
+    renderApp();
+    fireEvent.click(screen.getByRole("button", { name: /Empezar entreno/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Técnica/ }));
+    const sheet = within(screen.getByRole("dialog", { name: "Press Banca con Barra" }));
+    expect(sheet.queryByRole("button", { name: "Usar este ejercicio" })).not.toBeInTheDocument();
+    fireEvent.click(sheet.getByRole("button", { name: /Press Banca con Mancuernas/ }));
+    expect(screen.getByRole("dialog", { name: "Press Banca con Mancuernas" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Usar este ejercicio" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Volver al ejercicio anterior" }));
+    expect(screen.getByRole("dialog", { name: "Press Banca con Barra" })).toBeInTheDocument();
+  });
+
+  it("Biblioteca busca sin acentos, filtra y abre la ficha", () => {
+    seedProfile();
+    renderApp();
+    fireEvent.click(nav().getByRole("button", { name: "Biblioteca" }));
+    expect(screen.getByRole("heading", { name: "Ejercicios" })).toBeInTheDocument();
+
+    fireEvent.change(screen.getByPlaceholderText(/Buscar/), { target: { value: "jalon" } });
+    expect(screen.getByText("2 ejercicios")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Jalón al Pecho Agarre Neutro/ }));
+    const sheet = within(screen.getByRole("dialog", { name: "Jalón al Pecho Agarre Neutro" }));
+    expect(sheet.getByText("Errores comunes")).toBeInTheDocument();
+    fireEvent.click(sheet.getByRole("button", { name: "Cerrar ficha" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Borrar búsqueda" }));
+    fireEvent.click(screen.getByRole("button", { name: "Casa" }));
+    fireEvent.click(screen.getByRole("button", { name: "Hombros" }));
+    expect(screen.getByText("2 ejercicios")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Flexiones Pike/ })).toBeInTheDocument();
   });
 
   it("no marca la sesión como hecha si se termina sin series", () => {

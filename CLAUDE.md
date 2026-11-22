@@ -31,6 +31,10 @@ Futuro: Cloudflare Workers + D1 + login con Google (lo mismo que MacroQuest, `..
 - Hecho: páginas Plan, Coach, Perfil.
 - Hecho (Fase 2): motor en `src/engine/*` (progresión, estancamiento, generador, sustitución, XP), catálogo en `src/data/exercises.ts`,
   persistencia en localStorage vía `src/services/storage.ts`. Solo nutrición y coach siguen con mocks (Fases 3-4).
+- Hecho: Biblioteca (pestaña propia + ficha `ExerciseGuideSheet` en el entreno con "Técnica" y "Máquina ocupada").
+  Fichas en español en `src/data/exerciseGuides.ts`; fotos de free-exercise-db (dominio público) en
+  `public/exercises/<id>/{0,1}.webp` (560 px, WebP q60). Ejercicio nuevo ⇒ ficha + fotos (lo exige un test).
+  Los ejercicios nuevos van al FINAL del catálogo para no cambiar la elección del generador.
 
 ## Roadmap (hacer en orden, marcar [x] al terminar)
 
@@ -50,6 +54,7 @@ Futuro: Cloudflare Workers + D1 + login con Google (lo mismo que MacroQuest, `..
 - [x] Persistencia local (localStorage/IndexedDB) de workouts y sets reales, sustituyendo mocks en services.
 - [x] Sustitución de ejercicio por otro del mismo músculo con recálculo de pesos.
 - [x] Al terminar sesión: aplicar progresión, guardar PRs, sumar XP.
+- [x] Biblioteca de ejercicios: técnica, consejos, errores y fotos animadas; alternativas de máquina/polea si está ocupada.
 
 ### Fase 3 — Backend Cloudflare (compartido con MacroQuest)
 MacroQuest NO usa Supabase: es un Cloudflare Worker (`../macro-quest-app/worker`) con D1 (`macro-quest`),
