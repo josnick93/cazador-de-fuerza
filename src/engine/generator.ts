@@ -1,5 +1,6 @@
 import { weightForReps } from "@/engine/e1rm";
 import { parseRepRange } from "@/engine/progression";
+import { uniqueId } from "@/lib/id";
 import type {
   Equipment,
   Exercise,
@@ -467,7 +468,7 @@ export function generateMesocycle(
   });
 
   return {
-    id: options.id ?? `meso-${Date.now().toString(36)}`,
+    id: options.id ?? uniqueId("meso"),
     createdAt: options.createdAt ?? new Date().toISOString(),
     goal: input.goal,
     template,

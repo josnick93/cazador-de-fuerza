@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Check, ChevronDown, Circle, Play, Target } from "lucide-react";
 import { useApp } from "@/components/AppContext";
-import { getMesocycle } from "@/services/strengthService";
+import { getActiveMesocycle, getMesocycle } from "@/services/strengthService";
 import type { MesocycleDay, MesocyclePhase, MesocycleWeek } from "@/types";
 
 const PHASES: { id: MesocyclePhase; short: string; desc: string }[] = [
@@ -155,6 +155,7 @@ function WeekCard({
 export function PlanPage() {
   const { profile, setView } = useApp();
   const weeks = getMesocycle();
+  const { templateName } = getActiveMesocycle();
   const current = weeks.find((w) => w.isCurrent) ?? weeks[0];
   const [expanded, setExpanded] = useState<Set<number>>(
     () => new Set(current ? [current.weekNumber] : []),
@@ -181,7 +182,7 @@ export function PlanPage() {
             MESOCICLO ACTIVO
           </span>
           <span className="text-xs font-medium text-muted-foreground">
-            {profile.daysPerWeek} días/sem
+            {templateName} · {profile.daysPerWeek} días/sem
           </span>
         </div>
         <h1 className="mt-2 font-display text-2xl font-bold text-foreground">

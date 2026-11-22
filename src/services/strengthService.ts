@@ -1,30 +1,32 @@
 import { EXERCISE_CATALOG, MAIN_LIFTS } from "@/data/exercises";
+import { DEFAULT_PROFILE } from "@/data/defaultProfile";
+import { generateMesocycle } from "@/engine/generator";
+import { allSets, bestE1rm, formatSet, relativeDayLabel, weeklyBestE1rm } from "@/engine/history";
+import { detectPlateau } from "@/engine/plateau";
 import { MOCK_WEEKLY_NUTRITION } from "@/mocks/nutrition";
-import { MOCK_BEST_E1RM, MOCK_E1RM_HISTORY, MOCK_RECENT_PRS } from "@/mocks/sets";
-import {
-  MOCK_INITIAL_COACH_MESSAGES,
-  MOCK_MESOCYCLE,
-  MOCK_TODAY_WORKOUT,
-  MOCK_USER_PROFILE,
-  MOCK_WEEKLY_REVIEW,
-} from "@/mocks/workouts";
+import { MOCK_INITIAL_COACH_MESSAGES, MOCK_WEEKLY_REVIEW } from "@/mocks/workouts";
+import { uniqueId } from "@/lib/id";
+import { STORAGE_KEYS, readJson, removeKey, writeJson } from "@/services/storage";
 import type {
   CoachMessage,
   CoachWeeklyReview,
   Exercise,
+  GeneratedWeek,
   LiftId,
+  LoggedExercise,
+  Mesocycle,
   MesocycleWeek,
   MuscleGroup,
   PersonalRecord,
+  PlannedSession,
   StagnationAlert,
   UserProfile,
   WeeklyE1rmPoint,
   WeeklyNutritionPoint,
   WeightUnit,
+  WorkoutLog,
   WorkoutPlan,
 } from "@/types";
-
-import { detectPlateau } from "@/engine/plateau";
 
 export { calculateE1rm } from "@/engine/e1rm";
 
@@ -33,16 +35,22 @@ export function formatWeight(kg: number, unit: WeightUnit): string {
   return `${value.toString().replace(".", ",")} ${unit}`;
 }
 
-export function getUserProfile(): UserProfile {
-  return { ...MOCK_USER_PROFILE };
+// ── Perfil ──────────────────────────────────────────────────────────────────
+
+export function getDefaultProfile(): UserProfile {
+  return { ...DEFAULT_PROFILE, initial1RM: { ...DEFAULT_PROFILE.initial1RM } };
 }
 
-export function getTodayWorkout(): WorkoutPlan {
-  return {
-    ...MOCK_TODAY_WORKOUT,
-    exercises: MOCK_TODAY_WORKOUT.exercises.map((item) => ({ ...item })),
-  };
+export function getUserProfile(): UserProfile {
+  const saved = readJson<Partial<UserProfile> | null>(STORAGE_KEYS.profile, null);
+  return saved ? { ...getDefaultProfile(), ...saved } : getDefaultProfile();
 }
+
+export function saveUserProfile(profile: UserProfile): void {
+  writeJson(STORAGE_KEYS.profile, profile);
+}
+
+// ── Ejercicios ──────────────────────────────────────────────────────────────
 
 export function getAllExercises(): Exercise[] {
   return EXERCISE_CATALOG;
@@ -56,24 +64,205 @@ export function getExercisesByMuscle(muscle: MuscleGroup): Exercise[] {
   return EXERCISE_CATALOG.filter((ex) => ex.muscle === muscle);
 }
 
-export function getBestE1rm(exerciseId: string): number {
-  return MOCK_BEST_E1RM[exerciseId] ?? 0;
-}
-
 export function getMainLifts() {
   return MAIN_LIFTS;
 }
 
+function liftExerciseId(liftId: LiftId): string | undefined {
+  return EXERCISE_CATALOG.find((ex) => ex.liftId === liftId)?.id;
+}
+
+// ── Entrenos registrados ────────────────────────────────────────────────────
+
+export function getWorkoutLogs(): WorkoutLog[] {
+  return readJson<WorkoutLog[]>(STORAGE_KEYS.workouts, []);
+}
+
+export function saveWorkoutLog(log: WorkoutLog): void {
+  writeJson(STORAGE_KEYS.workouts, [...getWorkoutLogs().filter((l) => l.id !== log.id), log]);
+}
+
+/** Mejor e1RM registrado; para los básicos, el 1RM inicial del onboarding cuenta como marca. */
+export function getBestE1rm(exerciseId: string): number {
+  const logged = bestE1rm(getWorkoutLogs(), exerciseId);
+  const { initial1RM } = getUserProfile();
+  const baseline =
+    exerciseId === liftExerciseId("banca")
+      ? initial1RM.banca
+      : exerciseId === liftExerciseId("sentadilla")
+        ? initial1RM.sentadilla
+        : exerciseId === liftExerciseId("peso-muerto")
+          ? initial1RM.pesoMuerto
+          : null;
+  return Math.max(logged, baseline ?? 0);
+}
+
+/** Mejor e1RM registrado por ejercicio, para alimentar el generador. */
+export function getKnownE1rms(): Record<string, number> {
+  const known: Record<string, number> = {};
+  for (const set of allSets(getWorkoutLogs())) {
+    known[set.exerciseId] = Math.max(known[set.exerciseId] ?? 0, set.e1rm);
+  }
+  return known;
+}
+
+// ── Mesociclo ───────────────────────────────────────────────────────────────
+
+export function getActiveMesocycle(): Mesocycle {
+  const saved = readJson<Mesocycle | null>(STORAGE_KEYS.mesocycle, null);
+  return saved ?? regenerateMesocycle(getUserProfile());
+}
+
+export function saveMesocycle(mesocycle: Mesocycle): void {
+  writeJson(STORAGE_KEYS.mesocycle, mesocycle);
+}
+
+/** Crea un mesociclo nuevo para el perfil usando el historial real como referencia de cargas. */
+export function regenerateMesocycle(profile: UserProfile): Mesocycle {
+  const mesocycle = generateMesocycle(profile, EXERCISE_CATALOG, { knownE1rm: getKnownE1rms() });
+  saveMesocycle(mesocycle);
+  return mesocycle;
+}
+
+function completedSessionIds(mesocycle: Mesocycle): Set<string> {
+  return new Set(
+    getWorkoutLogs()
+      .filter((l) => l.mesocycleId === mesocycle.id)
+      .map((l) => l.sessionId),
+  );
+}
+
+export interface SessionRef {
+  week: GeneratedWeek;
+  session: PlannedSession;
+  index: number;
+}
+
+/** Próxima sesión pendiente (la "misión de hoy"); null si el mesociclo está completo. */
+export function getNextSession(mesocycle = getActiveMesocycle()): SessionRef | null {
+  const done = completedSessionIds(mesocycle);
+  let index = 0;
+  for (const week of mesocycle.weeks) {
+    for (const session of week.sessions) {
+      index += 1;
+      if (!done.has(session.id)) return { week, session, index };
+    }
+  }
+  return null;
+}
+
+export function getMesocycle(): MesocycleWeek[] {
+  const mesocycle = getActiveMesocycle();
+  const done = completedSessionIds(mesocycle);
+  const next = getNextSession(mesocycle);
+  const currentWeek = next?.week.weekNumber ?? mesocycle.weeks.length;
+
+  return mesocycle.weeks.map((week) => ({
+    weekNumber: week.weekNumber,
+    phase: week.phase,
+    intensityLabel: week.intensityLabel,
+    isCurrent: week.weekNumber === currentWeek,
+    days: week.sessions.map((session) => ({
+      dayLabel: session.dayLabel,
+      sessionTitle: session.title,
+      focus: session.focus,
+      completed: done.has(session.id),
+      isToday: next?.session.id === session.id,
+    })),
+  }));
+}
+
+function toWorkoutPlan(ref: SessionRef): WorkoutPlan {
+  const logs = getWorkoutLogs();
+  return {
+    id: ref.session.id,
+    title: ref.session.title,
+    questCode: `MISIÓN S${ref.week.weekNumber} · #${ref.index}`,
+    estimatedMinutes: ref.session.estimatedMinutes,
+    muscles: ref.session.muscles,
+    exercises: ref.session.exercises.map((pe) => {
+      const last = allSets(logs, [pe.exerciseId]).at(-1);
+      return {
+        ...pe,
+        lastSessionText: last ? `Última vez: ${formatSet(last)}` : pe.lastSessionText,
+      };
+    }),
+  };
+}
+
+/** Sesión de hoy: la próxima pendiente o, si el mesociclo terminó, la última. */
+export function getTodayWorkout(): WorkoutPlan {
+  const mesocycle = getActiveMesocycle();
+  const next = getNextSession(mesocycle);
+  if (next) return toWorkoutPlan(next);
+  const week = mesocycle.weeks.at(-1)!;
+  const session = week.sessions.at(-1)!;
+  const total = mesocycle.weeks.reduce((n, w) => n + w.sessions.length, 0);
+  return toWorkoutPlan({ week, session, index: total });
+}
+
+export interface CompleteWorkoutInput {
+  workout: WorkoutPlan;
+  durationSeconds: number;
+  exercises: LoggedExercise[];
+}
+
+/** Registra la sesión terminada en el historial local. */
+export function completeWorkout(input: CompleteWorkoutInput): WorkoutLog {
+  const log: WorkoutLog = {
+    id: uniqueId("log"),
+    sessionId: input.workout.id,
+    mesocycleId: getActiveMesocycle().id,
+    title: input.workout.title,
+    completedAt: new Date().toISOString(),
+    durationSeconds: input.durationSeconds,
+    exercises: input.exercises.filter((ex) => ex.sets.length > 0),
+    xpEarned: 0,
+  };
+  saveWorkoutLog(log);
+  return log;
+}
+
+// ── Progreso ────────────────────────────────────────────────────────────────
+
 export function getE1rmHistory(liftId: LiftId): WeeklyE1rmPoint[] {
-  return MOCK_E1RM_HISTORY[liftId] ?? [];
+  const exerciseId = liftExerciseId(liftId);
+  return exerciseId ? weeklyBestE1rm(getWorkoutLogs(), [exerciseId]) : [];
 }
 
 export function getWeeklyNutrition(): WeeklyNutritionPoint[] {
   return MOCK_WEEKLY_NUTRITION;
 }
 
-export function getRecentPRs(): PersonalRecord[] {
-  return MOCK_RECENT_PRS;
+/** Un PR por ejercicio y sesión (su mejor serie marcada como PR), los más recientes primero. */
+export function getRecentPRs(limit = 4): PersonalRecord[] {
+  const logs = [...getWorkoutLogs()].sort(
+    (a, b) => new Date(a.completedAt).getTime() - new Date(b.completedAt).getTime(),
+  );
+  const bestSoFar = new Map<string, number>();
+  const prs: PersonalRecord[] = [];
+
+  for (const log of logs) {
+    for (const ex of log.exercises) {
+      const previous = bestSoFar.get(ex.exerciseId) ?? 0;
+      const top = ex.sets.filter((set) => set.isPr).sort((a, b) => b.e1rm - a.e1rm)[0];
+      if (top) {
+        const exercise = getExerciseById(ex.exerciseId);
+        prs.push({
+          id: `${log.id}:${ex.exerciseId}`,
+          exerciseName: exercise?.name ?? ex.exerciseId,
+          liftId: exercise?.liftId ?? "banca",
+          e1rmKg: top.e1rm,
+          setSummary: formatSet(top),
+          dateLabel: relativeDayLabel(log.completedAt),
+          deltaKg: previous > 0 ? Math.round((top.e1rm - previous) * 10) / 10 : 0,
+        });
+      }
+      const sessionBest = ex.sets.reduce((max, set) => Math.max(max, set.e1rm), 0);
+      bestSoFar.set(ex.exerciseId, Math.max(previous, sessionBest));
+    }
+  }
+  return prs.reverse().slice(0, limit);
 }
 
 const avg = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0);
@@ -112,9 +301,7 @@ export function getStagnationAlert(liftId: LiftId): StagnationAlert | null {
   };
 }
 
-export function getMesocycle(): MesocycleWeek[] {
-  return MOCK_MESOCYCLE;
-}
+// ── Coach (mock hasta la Fase 4) ────────────────────────────────────────────
 
 export function getWeeklyReview(): CoachWeeklyReview {
   return MOCK_WEEKLY_REVIEW;
@@ -136,4 +323,11 @@ export function getCoachReply(prompt: string): string {
     return "Modo Misión Rápida (32 min): haz solo los 3 básicos de hoy — Press Banca (3×6 @ RIR 2), Remo con Barra (3×6 @ RIR 2) y Press Militar (2×8 @ RIR 2) con 2 min de descanso. Conservas el 85% del estímulo de fuerza.";
   }
   return "Recibido, Cazador. Prioriza cumplir el RIR objetivo (RIR 2 en acumulados) y mantén tu ingesta por encima de 160 g de proteína para desbloquear el siguiente rango de fuerza.";
+}
+
+// ── Utilidades ──────────────────────────────────────────────────────────────
+
+/** Borra todos los datos locales (perfil, mesociclo e historial). */
+export function resetLocalData(): void {
+  Object.values(STORAGE_KEYS).forEach(removeKey);
 }

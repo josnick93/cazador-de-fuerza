@@ -186,3 +186,29 @@ export interface Mesocycle {
   templateName: string;
   weeks: GeneratedWeek[];
 }
+
+export interface LoggedSet {
+  kg: number;
+  reps: number;
+  rir: number;
+  e1rm: number;
+  isPr: boolean;
+}
+
+export interface LoggedExercise {
+  exerciseId: string;
+  /** Ejercicio original del plan (difiere de exerciseId si se sustituyó). */
+  plannedExerciseId: string;
+  sets: LoggedSet[];
+}
+
+export interface WorkoutLog {
+  id: string;
+  sessionId: string;
+  mesocycleId: string;
+  title: string;
+  completedAt: string;
+  durationSeconds: number;
+  exercises: LoggedExercise[];
+  xpEarned: number;
+}

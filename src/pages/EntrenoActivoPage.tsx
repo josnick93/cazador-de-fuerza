@@ -18,28 +18,31 @@ import {
   getBestE1rm,
   getExerciseById,
   getExercisesByMuscle,
+  completeWorkout,
   getTodayWorkout,
 } from "@/services/strengthService";
-import type { ActiveSetRow, WorkoutSummary } from "@/types";
+import { parseRepRange } from "@/engine/progression";
+import type { ActiveSetRow, PlannedExercise, WorkoutSummary } from "@/types";
 
 const RIR_OPTIONS = [0, 1, 2, 3, 4] as const;
 
-function buildInitialSets(setsCount: number, targetKg: number, targetRir: number): ActiveSetRow[] {
-  return Array.from({ length: setsCount }, (_, idx) => ({
+function buildInitialSets(planned: PlannedExercise): ActiveSetRow[] {
+  const reps = parseRepRange(planned.repRange).min;
+  return Array.from({ length: planned.sets }, (_, idx) => ({
     id: `set-${idx + 1}`,
     setNumber: idx + 1,
-    kg: targetKg,
-    reps: 8,
-    rir: targetRir,
+    kg: planned.targetKg,
+    reps,
+    rir: planned.targetRir,
     completed: false,
     isPr: false,
-    e1rm: calculateE1rm(targetKg, 8, targetRir),
+    e1rm: calculateE1rm(planned.targetKg, reps, planned.targetRir),
   }));
 }
 
 export function EntrenoActivoPage() {
   const { profile, setView } = useApp();
-  const workout = getTodayWorkout();
+  const [workout] = useState(() => getTodayWorkout());
 
   const [exerciseIds, setExerciseIds] = useState<string[]>(() =>
     workout.exercises.map((e) => e.exerciseId),
@@ -48,7 +51,7 @@ export function EntrenoActivoPage() {
   const [setsByExercise, setSetsByExercise] = useState<Record<number, ActiveSetRow[]>>(() => {
     const map: Record<number, ActiveSetRow[]> = {};
     workout.exercises.forEach((planned, idx) => {
-      map[idx] = buildInitialSets(planned.sets, planned.targetKg, planned.targetRir);
+      map[idx] = buildInitialSets(planned);
     });
     return map;
   });
@@ -131,6 +134,21 @@ export function EntrenoActivoPage() {
       });
     });
 
+    const durationSeconds = Math.max(elapsedSeconds, 60);
+    if (completedSets > 0) {
+      completeWorkout({
+        workout,
+        durationSeconds,
+        exercises: workout.exercises.map((planned, idx) => ({
+          exerciseId: exerciseIds[idx] ?? planned.exerciseId,
+          plannedExerciseId: planned.exerciseId,
+          sets: (setsByExercise[idx] ?? [])
+            .filter((row) => row.completed)
+            .map(({ kg, reps, rir, e1rm, isPr }) => ({ kg, reps, rir, e1rm, isPr })),
+        })),
+      });
+    }
+
     setRestSeconds(0);
     setSummary({
       workoutTitle: workout.title,
@@ -138,7 +156,7 @@ export function EntrenoActivoPage() {
       completedSets,
       prsCount: prNames.length,
       prNames,
-      durationSeconds: Math.max(elapsedSeconds, 60),
+      durationSeconds,
     });
   };
 

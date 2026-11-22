@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { ArrowLeft, ArrowRight, Check, Dumbbell, Home, Shield, Sparkles } from "lucide-react";
 import { useApp } from "@/components/AppContext";
+import { regenerateMesocycle } from "@/services/strengthService";
 import type { Equipment, Goal } from "@/types";
 
 const GOALS: { id: Goal; title: string; desc: string }[] = [
@@ -54,7 +55,7 @@ export function OnboardingPage() {
 
   const finishOnboarding = () => {
     const parsedBw = Number(bodyweight);
-    updateProfile({
+    const next = updateProfile({
       goal,
       daysPerWeek,
       sessionMinutes,
@@ -69,6 +70,7 @@ export function OnboardingPage() {
             pesoMuerto: Number(pesoMuerto) > 0 ? Number(pesoMuerto) : null,
           },
     });
+    regenerateMesocycle(next);
     setView("hoy");
   };
 

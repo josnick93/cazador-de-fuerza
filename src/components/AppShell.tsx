@@ -1,4 +1,5 @@
 import { useLayoutEffect } from "react";
+import { Shield } from "lucide-react";
 import { useApp, type AppView } from "@/components/AppContext";
 import { MobileLayout } from "@/components/MobileLayout";
 import { CoachPage } from "@/pages/CoachPage";
@@ -30,13 +31,25 @@ function renderView(view: AppView) {
 }
 
 export function AppShell() {
-  const { profile, view } = useApp();
+  const { profile, view, hydrated } = useApp();
   const activeView: AppView = profile.onboardingCompleted ? view : "onboarding";
 
   // Layout effect: corre antes que los efectos de la página (p. ej. autoscroll del chat).
   useLayoutEffect(() => {
     window.scrollTo(0, 0);
   }, [activeView]);
+
+  if (!hydrated) {
+    return (
+      <div
+        role="status"
+        aria-label="Cargando"
+        className="grid min-h-dvh place-items-center bg-background text-primary"
+      >
+        <Shield className="h-10 w-10 animate-pulse" />
+      </div>
+    );
+  }
 
   return <MobileLayout>{renderView(activeView)}</MobileLayout>;
 }

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Check, Crown, Link2, RotateCcw, Shield, User } from "lucide-react";
 import { useApp } from "@/components/AppContext";
 import { Switch } from "@/components/ui/switch";
+import { regenerateMesocycle } from "@/services/strengthService";
 import type { Goal, WeightUnit } from "@/types";
 
 const KG_PER_LB = 0.45359237;
@@ -58,6 +59,11 @@ export function PerfilPage() {
     if (unit === profile.unit) return;
     updateProfile({ unit });
     setBodyweight(toDisplayWeight(profile.bodyweightKg, unit));
+  };
+
+  const changeGoal = (goal: Goal) => {
+    if (goal === profile.goal) return;
+    regenerateMesocycle(updateProfile({ goal }));
   };
 
   const xpPct = Math.min(100, Math.round((profile.xp / profile.nextLevelXp) * 100));
@@ -148,6 +154,9 @@ export function PerfilPage() {
         >
           Objetivo
         </h2>
+        <p className="-mt-1 text-xs text-muted-foreground">
+          Cambiarlo genera un mesociclo nuevo (tu historial se conserva).
+        </p>
         <div role="radiogroup" aria-labelledby="perfil-objetivo" className="grid grid-cols-2 gap-2">
           {GOAL_OPTIONS.map((g) => {
             const selected = profile.goal === g.id;
@@ -157,7 +166,7 @@ export function PerfilPage() {
                 type="button"
                 role="radio"
                 aria-checked={selected}
-                onClick={() => updateProfile({ goal: g.id })}
+                onClick={() => changeGoal(g.id)}
                 className={`flex min-h-[52px] items-center justify-between rounded-xl border px-3.5 font-display text-sm font-bold transition-colors ${
                   selected
                     ? "border-primary bg-primary/15 text-primary"
