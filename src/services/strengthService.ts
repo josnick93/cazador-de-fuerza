@@ -24,6 +24,8 @@ import type {
   WorkoutPlan,
 } from "@/types";
 
+import { detectPlateau } from "@/engine/plateau";
+
 export { calculateE1rm } from "@/engine/e1rm";
 
 export function formatWeight(kg: number, unit: WeightUnit): string {
@@ -70,28 +72,39 @@ export function getRecentPRs(): PersonalRecord[] {
   return MOCK_RECENT_PRS;
 }
 
+const avg = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0);
+
+/** Causa probable cruzando con nutrición (MacroQuest): caída de proteína/kcal o fatiga. */
+function explainPlateau(weeksStalled: number): string {
+  const nutrition = getWeeklyNutrition();
+  const recent = nutrition.slice(-weeksStalled);
+  const before = nutrition.slice(0, -weeksStalled);
+  const proteinBefore = Math.round(avg(before.map((n) => n.proteinG)));
+  const proteinNow = Math.round(avg(recent.map((n) => n.proteinG)));
+  const kcalDrop = Math.round(avg(before.map((n) => n.kcal)) - avg(recent.map((n) => n.kcal)));
+
+  if (proteinBefore > 0 && proteinNow < proteinBefore * 0.9) {
+    const kcalText = kcalDrop >= 150 ? ` y tus calorías bajaron ${kcalDrop} kcal` : "";
+    return `Tu proteína media cayó de ${proteinBefore} g a ${proteinNow} g/día en las últimas ${weeksStalled} semanas${kcalText}.`;
+  }
+  if (kcalDrop >= 250) {
+    return `Tus calorías medias bajaron ${kcalDrop} kcal en las últimas ${weeksStalled} semanas: estás en déficit.`;
+  }
+  return "Tu nutrición es estable: probablemente acumulas fatiga. Valora una descarga o cambiar el rango de reps.";
+}
+
 export function getStagnationAlert(liftId: LiftId): StagnationAlert | null {
   const history = getE1rmHistory(liftId);
-  if (history.length < 4) return null;
+  const plateau = detectPlateau(history.map((p) => p.e1rmKg));
+  if (!plateau.stalled) return null;
 
-  const lastFour = history.slice(-4);
-  const baseline = lastFour[0];
-  const recentThree = lastFour.slice(1);
-  if (!baseline || recentThree.length < 3) return null;
-
-  const hasImproved = recentThree.some((point) => point.e1rmKg > baseline.e1rmKg);
-  if (hasImproved) return null;
-
-  const liftMeta = MAIN_LIFTS.find((l) => l.id === liftId);
-  const liftName = liftMeta?.shortLabel ?? "Ejercicio";
-
+  const liftName = MAIN_LIFTS.find((l) => l.id === liftId)?.shortLabel ?? "Ejercicio";
   return {
     liftId,
     liftName,
-    weeksStalled: 3,
-    summary: `${liftName} estancada 3 semanas`,
-    cause:
-      "Tu proteína media cayó de 165 g a 125 g/día en las últimas 3 semanas y acumulaste fatiga en RIR 1.",
+    weeksStalled: plateau.weeksStalled,
+    summary: `${liftName} estancada ${plateau.weeksStalled} semanas`,
+    cause: explainPlateau(plateau.weeksStalled),
   };
 }
 
