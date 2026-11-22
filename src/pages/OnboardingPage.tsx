@@ -5,13 +5,30 @@ import type { Equipment, Goal } from "@/types";
 
 const GOALS: { id: Goal; title: string; desc: string }[] = [
   { id: "fuerza", title: "Fuerza", desc: "Subir tus marcas en los básicos semana a semana." },
-  { id: "hipertrofia", title: "Hipertrofia", desc: "Ganar masa muscular con sobrecarga progresiva." },
-  { id: "powerlifting", title: "Powerlifting", desc: "Especialización en banca, sentadilla y peso muerto." },
-  { id: "recomposicion", title: "Recomposición", desc: "Ganar fuerza mientras reduces grasa corporal." },
+  {
+    id: "hipertrofia",
+    title: "Hipertrofia",
+    desc: "Ganar masa muscular con sobrecarga progresiva.",
+  },
+  {
+    id: "powerlifting",
+    title: "Powerlifting",
+    desc: "Especialización en banca, sentadilla y peso muerto.",
+  },
+  {
+    id: "recomposicion",
+    title: "Recomposición",
+    desc: "Ganar fuerza mientras reduces grasa corporal.",
+  },
 ];
 
 const EQUIPMENT_OPTIONS: { id: Equipment; title: string; desc: string; icon: typeof Dumbbell }[] = [
-  { id: "gimnasio", title: "Gimnasio completo", desc: "Barras, racks, poleas y máquinas.", icon: Dumbbell },
+  {
+    id: "gimnasio",
+    title: "Gimnasio completo",
+    desc: "Barras, racks, poleas y máquinas.",
+    icon: Dumbbell,
+  },
   { id: "mancuernas", title: "Mancuernas", desc: "Banco regulable y mancuernas.", icon: Sparkles },
   { id: "casa", title: "Casa", desc: "Barra de dominadas, lastre y peso corporal.", icon: Home },
 ];
@@ -24,7 +41,9 @@ export function OnboardingPage() {
   const [sessionMinutes, setSessionMinutes] = useState(profile.sessionMinutes);
   const [equipment, setEquipment] = useState<Equipment>(profile.equipment);
   const [bodyweight, setBodyweight] = useState(String(profile.bodyweightKg));
-  const [banca, setBanca] = useState(profile.initial1RM.banca ? String(profile.initial1RM.banca) : "");
+  const [banca, setBanca] = useState(
+    profile.initial1RM.banca ? String(profile.initial1RM.banca) : "",
+  );
   const [sentadilla, setSentadilla] = useState(
     profile.initial1RM.sentadilla ? String(profile.initial1RM.sentadilla) : "",
   );
@@ -59,7 +78,9 @@ export function OnboardingPage() {
         <div className="mb-3 flex items-center justify-between">
           <div className="flex items-center gap-2 text-primary">
             <Shield className="h-5 w-5" />
-            <span className="font-display text-sm font-bold tracking-wider">SISTEMA · PASO {step}/4</span>
+            <span className="font-display text-sm font-bold tracking-wider">
+              SISTEMA · PASO {step}/4
+            </span>
           </div>
           <button
             type="button"
@@ -81,7 +102,9 @@ export function OnboardingPage() {
         {step === 1 && (
           <>
             <div>
-              <h1 className="font-display text-2xl font-bold text-foreground">¿Cuál es tu misión principal?</h1>
+              <h1 className="font-display text-2xl font-bold text-foreground">
+                ¿Cuál es tu misión principal?
+              </h1>
               <p className="mt-1 text-sm text-muted-foreground">
                 Ajustaremos tu volumen, RIR y progresión de cargas.
               </p>
@@ -101,7 +124,9 @@ export function OnboardingPage() {
                     }`}
                   >
                     <div>
-                      <p className="font-display text-base font-bold text-foreground">{item.title}</p>
+                      <p className="font-display text-base font-bold text-foreground">
+                        {item.title}
+                      </p>
                       <p className="text-xs text-muted-foreground">{item.desc}</p>
                     </div>
                     {selected && <Check className="h-5 w-5 shrink-0 text-primary" />}
@@ -115,7 +140,9 @@ export function OnboardingPage() {
         {step === 2 && (
           <>
             <div>
-              <h1 className="font-display text-2xl font-bold text-foreground">Frecuencia y duración</h1>
+              <h1 className="font-display text-2xl font-bold text-foreground">
+                Frecuencia y duración
+              </h1>
               <p className="mt-1 text-sm text-muted-foreground">
                 Elige cuántos días entrenarás por semana y cuánto tiempo tienes.
               </p>
@@ -166,7 +193,9 @@ export function OnboardingPage() {
         {step === 3 && (
           <>
             <div>
-              <h1 className="font-display text-2xl font-bold text-foreground">¿Con qué equipamiento entrenas?</h1>
+              <h1 className="font-display text-2xl font-bold text-foreground">
+                ¿Con qué equipamiento entrenas?
+              </h1>
               <p className="mt-1 text-sm text-muted-foreground">
                 Solo propondremos ejercicios compatibles con tu equipo.
               </p>
@@ -203,7 +232,9 @@ export function OnboardingPage() {
         {step === 4 && (
           <>
             <div>
-              <h1 className="font-display text-2xl font-bold text-foreground">Tus marcas iniciales</h1>
+              <h1 className="font-display text-2xl font-bold text-foreground">
+                Tus marcas iniciales
+              </h1>
               <p className="mt-1 text-sm text-muted-foreground">
                 Opcional: indica tu peso corporal y 1RM aproximado en {profile.unit}.
               </p>

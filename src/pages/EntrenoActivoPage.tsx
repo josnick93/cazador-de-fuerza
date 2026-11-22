@@ -1,14 +1,5 @@
 import { useEffect, useState } from "react";
-import {
-  ArrowLeft,
-  ArrowRight,
-  Check,
-  Minus,
-  Plus,
-  RefreshCw,
-  Trophy,
-  X,
-} from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Minus, Plus, RefreshCw, Trophy, X } from "lucide-react";
 import { useApp } from "@/components/AppContext";
 import { RestTimerBar } from "@/components/RestTimerBar";
 import {
@@ -22,11 +13,7 @@ import type { ActiveSetRow, WorkoutSummary } from "@/types";
 
 const RIR_OPTIONS = [0, 1, 2, 3, 4] as const;
 
-function buildInitialSets(
-  setsCount: number,
-  targetKg: number,
-  targetRir: number,
-): ActiveSetRow[] {
+function buildInitialSets(setsCount: number, targetKg: number, targetRir: number): ActiveSetRow[] {
   return Array.from({ length: setsCount }, (_, idx) => ({
     id: `set-${idx + 1}`,
     setNumber: idx + 1,
@@ -176,9 +163,7 @@ export function EntrenoActivoPage() {
             </div>
             <div className="system-panel rounded-2xl p-3.5 text-center">
               <p className="text-[11px] uppercase tracking-wider text-muted-foreground">Duración</p>
-              <p className="tabular-nums-display mt-1 text-xl font-bold text-primary">
-                {mins} min
-              </p>
+              <p className="tabular-nums-display mt-1 text-xl font-bold text-primary">{mins} min</p>
             </div>
           </div>
 
@@ -271,9 +256,7 @@ export function EntrenoActivoPage() {
             <div
               key={row.id}
               className={`rounded-2xl border p-3.5 transition-all ${
-                row.completed
-                  ? "border-success/50 bg-success/10"
-                  : "border-border bg-card"
+                row.completed ? "border-success/50 bg-success/10" : "border-border bg-card"
               }`}
             >
               <div className="mb-3 flex items-center justify-between">
@@ -300,9 +283,7 @@ export function EntrenoActivoPage() {
                     <button
                       type="button"
                       aria-label="Restar 2,5 kg"
-                      onClick={() =>
-                        updateSet(idx, (r) => ({ ...r, kg: Math.max(0, r.kg - 2.5) }))
-                      }
+                      onClick={() => updateSet(idx, (r) => ({ ...r, kg: Math.max(0, r.kg - 2.5) }))}
                       className="grid h-12 w-11 shrink-0 place-items-center rounded-lg bg-card text-foreground active:scale-95"
                     >
                       <Minus className="h-4 w-4" />

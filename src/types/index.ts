@@ -1,20 +1,9 @@
 export type Goal = "fuerza" | "hipertrofia" | "powerlifting" | "recomposicion";
 export type Equipment = "gimnasio" | "mancuernas" | "casa";
 export type WeightUnit = "kg" | "lb";
-export type MuscleGroup =
-  | "Pecho"
-  | "Espalda"
-  | "Piernas"
-  | "Hombros"
-  | "Brazos"
-  | "Core";
+export type MuscleGroup = "Pecho" | "Espalda" | "Piernas" | "Hombros" | "Brazos" | "Core";
 
-export type LiftId =
-  | "banca"
-  | "sentadilla"
-  | "peso-muerto"
-  | "press-militar"
-  | "dominadas";
+export type LiftId = "banca" | "sentadilla" | "peso-muerto" | "press-militar" | "dominadas";
 
 export type MesocyclePhase = "Acumulación" | "Intensificación" | "Descarga";
 

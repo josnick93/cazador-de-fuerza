@@ -1,10 +1,6 @@
 import { Clock, Flame, Play, Swords } from "lucide-react";
 import { useApp } from "@/components/AppContext";
-import {
-  formatWeight,
-  getExerciseById,
-  getTodayWorkout,
-} from "@/services/strengthService";
+import { formatWeight, getExerciseById, getTodayWorkout } from "@/services/strengthService";
 
 export function HoyPage() {
   const { profile, setView } = useApp();
@@ -19,8 +15,7 @@ export function HoyPage() {
             {workout.questCode}
           </span>
           <span className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground">
-            <Clock className="h-3.5 w-3.5 text-primary" />
-            ~{workout.estimatedMinutes} min
+            <Clock className="h-3.5 w-3.5 text-primary" />~{workout.estimatedMinutes} min
           </span>
         </div>
 
@@ -80,9 +75,7 @@ export function HoyPage() {
                     {planned.sets} × {planned.repRange} @ RIR {planned.targetRir} ·{" "}
                     {formatWeight(planned.targetKg, profile.unit)}
                   </p>
-                  <p className="mt-0.5 text-xs text-muted-foreground">
-                    {planned.lastSessionText}
-                  </p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">{planned.lastSessionText}</p>
                 </div>
               </div>
             );

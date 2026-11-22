@@ -87,7 +87,12 @@ export const MOCK_MESOCYCLE: MesocycleWeek[] = [
     days: [
       { dayLabel: "Lun", sessionTitle: "Torso Fuerza A", focus: "Banca + Remo", completed: true },
       { dayLabel: "Mar", sessionTitle: "Pierna Fuerza A", focus: "Sentadilla", completed: true },
-      { dayLabel: "Jue", sessionTitle: "Torso Fuerza B", focus: "Militar + Dominadas", completed: true },
+      {
+        dayLabel: "Jue",
+        sessionTitle: "Torso Fuerza B",
+        focus: "Militar + Dominadas",
+        completed: true,
+      },
       { dayLabel: "Vie", sessionTitle: "Pierna Fuerza B", focus: "Peso Muerto", completed: true },
     ],
   },
@@ -99,7 +104,12 @@ export const MOCK_MESOCYCLE: MesocycleWeek[] = [
     days: [
       { dayLabel: "Lun", sessionTitle: "Torso Fuerza A", focus: "Banca + Remo", completed: true },
       { dayLabel: "Mar", sessionTitle: "Pierna Fuerza A", focus: "Sentadilla", completed: true },
-      { dayLabel: "Jue", sessionTitle: "Torso Fuerza B", focus: "Militar + Dominadas", completed: true },
+      {
+        dayLabel: "Jue",
+        sessionTitle: "Torso Fuerza B",
+        focus: "Militar + Dominadas",
+        completed: true,
+      },
       { dayLabel: "Vie", sessionTitle: "Pierna Fuerza B", focus: "Peso Muerto", completed: true },
     ],
   },
@@ -109,10 +119,31 @@ export const MOCK_MESOCYCLE: MesocycleWeek[] = [
     intensityLabel: "RIR 2 · Cargas altas",
     isCurrent: true,
     days: [
-      { dayLabel: "Lun", sessionTitle: "Torso Fuerza A", focus: "Banca 3×6-8 @ RIR 2", completed: false, isToday: true },
-      { dayLabel: "Mar", sessionTitle: "Pierna Fuerza A", focus: "Sentadilla 4×5 @ RIR 2", completed: false },
-      { dayLabel: "Jue", sessionTitle: "Torso Fuerza B", focus: "Militar 3×6 @ RIR 1", completed: false },
-      { dayLabel: "Vie", sessionTitle: "Pierna Fuerza B", focus: "Peso Muerto 3×5 @ RIR 2", completed: false },
+      {
+        dayLabel: "Lun",
+        sessionTitle: "Torso Fuerza A",
+        focus: "Banca 3×6-8 @ RIR 2",
+        completed: false,
+        isToday: true,
+      },
+      {
+        dayLabel: "Mar",
+        sessionTitle: "Pierna Fuerza A",
+        focus: "Sentadilla 4×5 @ RIR 2",
+        completed: false,
+      },
+      {
+        dayLabel: "Jue",
+        sessionTitle: "Torso Fuerza B",
+        focus: "Militar 3×6 @ RIR 1",
+        completed: false,
+      },
+      {
+        dayLabel: "Vie",
+        sessionTitle: "Pierna Fuerza B",
+        focus: "Peso Muerto 3×5 @ RIR 2",
+        completed: false,
+      },
     ],
   },
   {
@@ -121,10 +152,30 @@ export const MOCK_MESOCYCLE: MesocycleWeek[] = [
     intensityLabel: "RIR 1 · Pico de fuerza",
     isCurrent: false,
     days: [
-      { dayLabel: "Lun", sessionTitle: "Torso Fuerza A", focus: "Banca Top Set RIR 1", completed: false },
-      { dayLabel: "Mar", sessionTitle: "Pierna Fuerza A", focus: "Sentadilla Top Set", completed: false },
-      { dayLabel: "Jue", sessionTitle: "Torso Fuerza B", focus: "Militar + Dominadas", completed: false },
-      { dayLabel: "Vie", sessionTitle: "Pierna Fuerza B", focus: "Peso Muerto Top Set", completed: false },
+      {
+        dayLabel: "Lun",
+        sessionTitle: "Torso Fuerza A",
+        focus: "Banca Top Set RIR 1",
+        completed: false,
+      },
+      {
+        dayLabel: "Mar",
+        sessionTitle: "Pierna Fuerza A",
+        focus: "Sentadilla Top Set",
+        completed: false,
+      },
+      {
+        dayLabel: "Jue",
+        sessionTitle: "Torso Fuerza B",
+        focus: "Militar + Dominadas",
+        completed: false,
+      },
+      {
+        dayLabel: "Vie",
+        sessionTitle: "Pierna Fuerza B",
+        focus: "Peso Muerto Top Set",
+        completed: false,
+      },
     ],
   },
   {
@@ -133,8 +184,18 @@ export const MOCK_MESOCYCLE: MesocycleWeek[] = [
     intensityLabel: "RIR 4 · -40% volumen",
     isCurrent: false,
     days: [
-      { dayLabel: "Lun", sessionTitle: "Torso Técnico", focus: "Banca 2×5 @ 70%", completed: false },
-      { dayLabel: "Jue", sessionTitle: "Pierna Técnica", focus: "Sentadilla 2×5 @ 70%", completed: false },
+      {
+        dayLabel: "Lun",
+        sessionTitle: "Torso Técnico",
+        focus: "Banca 2×5 @ 70%",
+        completed: false,
+      },
+      {
+        dayLabel: "Jue",
+        sessionTitle: "Pierna Técnica",
+        focus: "Sentadilla 2×5 @ 70%",
+        completed: false,
+      },
     ],
   },
 ];
