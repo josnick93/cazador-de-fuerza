@@ -40,7 +40,7 @@ Futuro: Supabase (auth + Postgres + Edge Functions), Capacitor (Android/iOS), St
 - [x] `src/engine/progression.ts`: doble progresión con RIR
       (reps ≥ máx y RIR ≥ objetivo → +2,5 kg y reps mínimas; RIR ≤ objetivo-2 → -2,5 kg; si no +1 rep). Tests.
 - [x] `src/engine/plateau.ts`: estancamiento si el mejor e1RM de las 3 últimas semanas no supera +1% el máximo previo. Tests.
-- [ ] `src/engine/generator.ts`: genera mesociclo (4-6 semanas) según objetivo, días/semana, duración, equipamiento y 1RM.
+- [x] `src/engine/generator.ts`: genera mesociclo (4-6 semanas) según objetivo, días/semana, duración, equipamiento y 1RM.
       Plantillas: Full body (2-3 días), Torso/Pierna (4), PPL (5-6), Powerlifting (básicos + %1RM). Descarga automática última semana.
 - [ ] Persistencia local (localStorage/IndexedDB) de workouts y sets reales, sustituyendo mocks en services.
 - [ ] Sustitución de ejercicio por otro del mismo músculo con recálculo de pesos.

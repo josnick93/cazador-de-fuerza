@@ -92,3 +92,19 @@ export const MOCK_RECENT_PRS: PersonalRecord[] = [
     deltaKg: 1.0,
   },
 ];
+
+/** Mejor e1RM registrado por ejercicio (sustituido por datos reales en la persistencia local). */
+export const MOCK_BEST_E1RM: Record<string, number> = {
+  "ex-banca-barra": 102.5,
+  "ex-banca-mancuernas": 94,
+  "ex-press-inclinado": 88.5,
+  "ex-remo-barra": 96,
+  "ex-dominadas": 108,
+  "ex-jalon-pecho": 92,
+  "ex-press-militar": 67.5,
+  "ex-elevaciones-laterales": 22,
+  "ex-sentadilla": 138,
+  "ex-peso-muerto": 168,
+  "ex-fondos-triceps": 104,
+  "ex-curl-barra": 52,
+};

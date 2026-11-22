@@ -29,14 +29,33 @@ export interface UserProfile {
   };
 }
 
+export type MovementPattern =
+  | "sentadilla"
+  | "bisagra"
+  | "empuje-horizontal"
+  | "empuje-vertical"
+  | "tiron-horizontal"
+  | "tiron-vertical"
+  | "pierna-accesorio"
+  | "hombro-accesorio"
+  | "biceps"
+  | "triceps";
+
+/** Base para estimar el e1RM de un ejercicio: un 1RM inicial o el peso corporal. */
+export type StrengthBase = "banca" | "sentadilla" | "pesoMuerto" | "pesoCorporal";
+
 export interface Exercise {
   id: string;
   liftId?: LiftId;
   name: string;
   muscle: MuscleGroup;
+  /** Equipamiento mínimo necesario. "gimnasio" ⊃ "mancuernas" ⊃ "casa". */
   equipment: Equipment;
+  pattern: MovementPattern;
+  compound: boolean;
+  /** e1RM estimado = base × ratio. Con pesoCorporal la carga incluye el cuerpo. */
+  strength: { base: StrengthBase; ratio: number };
   defaultRestSec: number;
-  bestE1rmKg: number;
 }
 
 export interface PlannedExercise {
@@ -137,4 +156,33 @@ export interface WorkoutSummary {
   prsCount: number;
   prNames: string[];
   durationSeconds: number;
+}
+
+export type TemplateId = "full-body" | "torso-pierna" | "ppl" | "powerlifting";
+
+export interface PlannedSession {
+  id: string;
+  dayLabel: string;
+  title: string;
+  focus: string;
+  muscles: MuscleGroup[];
+  estimatedMinutes: number;
+  exercises: PlannedExercise[];
+}
+
+export interface GeneratedWeek {
+  weekNumber: number;
+  phase: MesocyclePhase;
+  intensityLabel: string;
+  targetRir: number;
+  sessions: PlannedSession[];
+}
+
+export interface Mesocycle {
+  id: string;
+  createdAt: string;
+  goal: Goal;
+  template: TemplateId;
+  templateName: string;
+  weeks: GeneratedWeek[];
 }

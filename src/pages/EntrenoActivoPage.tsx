@@ -15,6 +15,7 @@ import { RestTimerBar } from "@/components/RestTimerBar";
 import {
   calculateE1rm,
   formatWeight,
+  getBestE1rm,
   getExerciseById,
   getExercisesByMuscle,
   getTodayWorkout,
@@ -91,7 +92,7 @@ export function EntrenoActivoPage() {
     if (!row || !currentExercise) return;
     const nowCompleted = !row.completed;
     const e1rm = calculateE1rm(row.kg, row.reps, row.rir);
-    const isPr = nowCompleted && e1rm > currentExercise.bestE1rmKg;
+    const isPr = nowCompleted && e1rm > getBestE1rm(currentExercise.id);
 
     updateSet(setIdx, (r) => ({
       ...r,

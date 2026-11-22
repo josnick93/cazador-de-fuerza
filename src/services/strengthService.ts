@@ -1,6 +1,6 @@
-import { MAIN_LIFTS, MOCK_EXERCISES } from "@/mocks/exercises";
+import { EXERCISE_CATALOG, MAIN_LIFTS } from "@/data/exercises";
 import { MOCK_WEEKLY_NUTRITION } from "@/mocks/nutrition";
-import { MOCK_E1RM_HISTORY, MOCK_RECENT_PRS } from "@/mocks/sets";
+import { MOCK_BEST_E1RM, MOCK_E1RM_HISTORY, MOCK_RECENT_PRS } from "@/mocks/sets";
 import {
   MOCK_INITIAL_COACH_MESSAGES,
   MOCK_MESOCYCLE,
@@ -45,15 +45,19 @@ export function getTodayWorkout(): WorkoutPlan {
 }
 
 export function getAllExercises(): Exercise[] {
-  return MOCK_EXERCISES;
+  return EXERCISE_CATALOG;
 }
 
 export function getExerciseById(exerciseId: string): Exercise | undefined {
-  return MOCK_EXERCISES.find((ex) => ex.id === exerciseId);
+  return EXERCISE_CATALOG.find((ex) => ex.id === exerciseId);
 }
 
 export function getExercisesByMuscle(muscle: MuscleGroup): Exercise[] {
-  return MOCK_EXERCISES.filter((ex) => ex.muscle === muscle);
+  return EXERCISE_CATALOG.filter((ex) => ex.muscle === muscle);
+}
+
+export function getBestE1rm(exerciseId: string): number {
+  return MOCK_BEST_E1RM[exerciseId] ?? 0;
 }
 
 export function getMainLifts() {
