@@ -37,7 +37,7 @@ Futuro: Supabase (auth + Postgres + Edge Functions), Capacitor (Android/iOS), St
 - [x] Revisar flujo completo Hoy → Entreno activo → Resumen → Progreso. Test de routing actualizado.
 
 ### Fase 2 — Entrenos personalizados (motor local)
-- [ ] `src/engine/progression.ts`: doble progresión con RIR
+- [x] `src/engine/progression.ts`: doble progresión con RIR
       (reps ≥ máx y RIR ≥ objetivo → +2,5 kg y reps mínimas; RIR ≤ objetivo-2 → -2,5 kg; si no +1 rep). Tests.
 - [ ] `src/engine/plateau.ts`: estancamiento si el mejor e1RM de las 3 últimas semanas no supera +1% el máximo previo. Tests.
 - [ ] `src/engine/generator.ts`: genera mesociclo (4-6 semanas) según objetivo, días/semana, duración, equipamiento y 1RM.

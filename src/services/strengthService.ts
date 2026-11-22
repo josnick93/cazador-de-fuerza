@@ -24,14 +24,7 @@ import type {
   WorkoutPlan,
 } from "@/types";
 
-/**
- * Fórmula de e1RM solicitada: e1RM = kg × (1 + (reps + RIR) / 30)
- */
-export function calculateE1rm(kg: number, reps: number, rir: number): number {
-  if (kg <= 0 || reps <= 0) return 0;
-  const safeRir = Math.max(0, rir);
-  return Math.round(kg * (1 + (reps + safeRir) / 30) * 10) / 10;
-}
+export { calculateE1rm } from "@/engine/e1rm";
 
 export function formatWeight(kg: number, unit: WeightUnit): string {
   const value = unit === "lb" ? Math.round(kg * 2.20462 * 2) / 2 : Math.round(kg * 10) / 10;
