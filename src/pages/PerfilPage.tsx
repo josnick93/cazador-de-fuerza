@@ -1,5 +1,17 @@
 import { useState } from "react";
-import { Check, Cloud, Crown, Link2, LogIn, LogOut, RotateCcw, Shield, User } from "lucide-react";
+import {
+  AlertTriangle,
+  Check,
+  Cloud,
+  Crown,
+  Link2,
+  LogIn,
+  LogOut,
+  RefreshCw,
+  RotateCcw,
+  Shield,
+  User,
+} from "lucide-react";
 import { useApp } from "@/components/AppContext";
 import { Switch } from "@/components/ui/switch";
 import { LOGIN_URL, logout } from "@/services/authService";
@@ -27,6 +39,17 @@ const LOGIN_MESSAGES = {
   error: "No se pudo iniciar sesión. Inténtalo de nuevo.",
 } as const;
 
+function syncLabel(state: string, lastSyncAt: string | null): string {
+  if (state === "syncing") return "Sincronizando…";
+  if (state === "error") return "No se pudo sincronizar. Se reintentará solo.";
+  if (!lastSyncAt) return "Pendiente de sincronizar";
+  const d = new Date(lastSyncAt);
+  const hh = d.getHours().toString().padStart(2, "0");
+  const mm = d.getMinutes().toString().padStart(2, "0");
+  const today = new Date().toDateString() === d.toDateString();
+  return `Sincronizado ${today ? "hoy" : d.toLocaleDateString("es-ES")} a las ${hh}:${mm}`;
+}
+
 const PREMIUM_PERKS = [
   "Coach IA sin límite de consultas",
   "Revisión semanal con datos de MacroQuest",
@@ -39,7 +62,17 @@ function toDisplayWeight(kg: number, unit: WeightUnit): string {
 }
 
 export function PerfilPage() {
-  const { profile, updateProfile, setView, account, refreshAccount, loginResult } = useApp();
+  const {
+    profile,
+    updateProfile,
+    setView,
+    account,
+    refreshAccount,
+    loginResult,
+    sync,
+    syncData,
+    adoptAccountData,
+  } = useApp();
   const [name, setName] = useState(profile.name);
   const [bodyweight, setBodyweight] = useState(() =>
     toDisplayWeight(profile.bodyweightKg, profile.unit),
@@ -140,6 +173,44 @@ export function PerfilPage() {
                   Es la misma cuenta que usas en MacroQuest.
                 </p>
               </div>
+              {sync.state === "conflict" ? (
+                <div
+                  role="alert"
+                  className="space-y-2 rounded-xl border border-gold/40 bg-gold/10 p-3"
+                >
+                  <p className="flex gap-2 text-sm text-foreground">
+                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-gold" />
+                    Los datos de este dispositivo son de otra cuenta y no se mezclan.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={adoptAccountData}
+                    className="flex min-h-[48px] w-full items-center justify-center rounded-xl bg-gold font-display text-sm font-bold text-gold-foreground"
+                  >
+                    Usar los datos de esta cuenta
+                  </button>
+                  <p className="text-xs text-muted-foreground">
+                    Se borran los datos de este dispositivo y se bajan los de {account.user.email}.
+                  </p>
+                </div>
+              ) : (
+                <div className="flex items-center justify-between gap-2 rounded-xl bg-surface px-3 py-2">
+                  <span role="status" className="text-xs text-muted-foreground">
+                    {syncLabel(sync.state, sync.lastSyncAt)}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => void syncData()}
+                    disabled={sync.state === "syncing"}
+                    aria-label="Sincronizar ahora"
+                    className="grid h-12 w-12 shrink-0 place-items-center rounded-xl text-primary disabled:opacity-50"
+                  >
+                    <RefreshCw
+                      className={`h-4 w-4 ${sync.state === "syncing" ? "animate-spin" : ""}`}
+                    />
+                  </button>
+                </div>
+              )}
               <button
                 type="button"
                 onClick={signOut}

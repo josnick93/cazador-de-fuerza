@@ -28,6 +28,9 @@ function stubAuthServer(user: { id: string; email: string; name: string | null }
     vi.fn(async (url: string, init?: RequestInit) => {
       calls.push(`${init?.method ?? "GET"} ${url}`);
       if (url === "/api/auth/logout") current = null;
+      if (url === "/api/sync") {
+        return Response.json({ epoch: "e1", cursor: 0, changes: [], more: false });
+      }
       return new Response(JSON.stringify({ enabled: true, user: current }), {
         headers: { "content-type": "application/json" },
       });
@@ -227,6 +230,8 @@ describe("Flujo de la app", () => {
     renderApp();
     fireEvent.click(screen.getByRole("button", { name: "Abrir perfil" }));
     expect(await screen.findByText("ana@example.com")).toBeInTheDocument();
+    expect(await screen.findByText(/Sincronizado hoy/)).toBeInTheDocument();
+    expect(calls).toContain("POST /api/sync");
     fireEvent.click(screen.getByRole("button", { name: /Cerrar sesión/ }));
     expect(await screen.findByRole("link", { name: /Entrar con Google/ })).toBeInTheDocument();
     expect(calls).toContain("POST /api/auth/logout");

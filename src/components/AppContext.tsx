@@ -1,4 +1,12 @@
-import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import {
   consumeLoginResult,
   getAccount,
@@ -6,7 +14,17 @@ import {
   type LoginResult,
 } from "@/services/authService";
 import { getDefaultProfile, getUserProfile, saveUserProfile } from "@/services/strengthService";
+import {
+  adoptAccount,
+  getLastSyncAt,
+  onLocalChange,
+  syncNow,
+  type SyncState,
+} from "@/services/syncService";
 import type { UserProfile } from "@/types";
+
+/** Espera tras un cambio local antes de subirlo (agrupa varios guardados seguidos). */
+const SYNC_DEBOUNCE_MS = 2500;
 
 export type MainTab = "hoy" | "progreso" | "plan" | "biblioteca" | "coach";
 export type AppView = MainTab | "entreno" | "perfil" | "onboarding";
@@ -27,6 +45,13 @@ interface AppContextValue {
   refreshAccount: () => Promise<void>;
   /** Resultado del login con el que ha vuelto la app (se muestra en Perfil). */
   loginResult: LoginResult | null;
+  /** Estado de la copia en la nube (solo con sesión). */
+  sync: { state: SyncState; lastSyncAt: string | null };
+  syncData: () => Promise<void>;
+  /** Conflicto de cuentas: borra lo del dispositivo y baja los datos de la cuenta actual. */
+  adoptAccountData: () => void;
+  /** Cambia cuando llegan datos de otro dispositivo (las pantallas se vuelven a montar). */
+  dataVersion: number;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -41,8 +66,58 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [account, setAccount] = useState<AccountState>({ enabled: false, user: null });
   const [loginResult, setLoginResult] = useState<LoginResult | null>(null);
 
+  const [sync, setSync] = useState<AppContextValue["sync"]>({ state: "idle", lastSyncAt: null });
+  const [dataVersion, setDataVersion] = useState(0);
+  const userId = account.user?.id ?? null;
+
   const refreshAccount = async () => {
     setAccount(await getAccount());
+  };
+
+  const reloadLocalData = () => {
+    const saved = getUserProfile();
+    profileRef.current = saved;
+    setProfile(saved);
+    setDataVersion((v) => v + 1);
+  };
+
+  const syncData = useCallback(async () => {
+    if (!userId) return;
+    setSync((s) => ({ ...s, state: "syncing" }));
+    const result = await syncNow(userId);
+    setSync({ state: result.state, lastSyncAt: result.lastSyncAt });
+    if (result.changed) reloadLocalData();
+    if (result.state === "signed-out") setAccount(await getAccount());
+  }, [userId]);
+
+  useEffect(() => {
+    if (!userId) return;
+    setSync({ state: "idle", lastSyncAt: getLastSyncAt() });
+    void syncData();
+    let timer: number | undefined;
+    const schedule = () => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => void syncData(), SYNC_DEBOUNCE_MS);
+    };
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void syncData();
+    };
+    const off = onLocalChange(schedule);
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("online", schedule);
+    return () => {
+      off();
+      window.clearTimeout(timer);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("online", schedule);
+    };
+  }, [userId, syncData]);
+
+  const adoptAccountData = () => {
+    if (!userId) return;
+    adoptAccount(userId);
+    reloadLocalData();
+    void syncData();
   };
 
   useEffect(() => {
@@ -87,6 +162,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
         account,
         refreshAccount,
         loginResult,
+        sync,
+        syncData,
+        adoptAccountData,
+        dataVersion,
       }}
     >
       {children}

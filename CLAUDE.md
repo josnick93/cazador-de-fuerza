@@ -77,7 +77,12 @@ Leer ese código antes de diseñar nada. Secretos con `wrangler secret`, nunca e
       MacroQuest). App: `services/authService.ts` + sección «Cuenta» en Perfil. Sin servidor (`bun run dev`)
       `/api/auth/me` falla y la app sigue en local. Desplegar: `bun run deploy` y los secrets
       `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` (los mismos de MacroQuest) con `wrangler secret put`.
-- [ ] Sync datos locales ↔ D1 (gana el `updatedAt` más reciente), mismo patrón que MacroQuest.
+- [x] Sync datos locales ↔ D1 (`/api/sync` en `src/worker/sync.ts`, cliente en `services/syncService.ts`), mismo
+      protocolo que MacroQuest. Almacenes `profile`/`mesocycle` (clave "me") y `workouts` (id). Toda escritura local
+      pasa por `markDirty` (ya lo hacen `saveUserProfile`, `saveMesocycle`, `saveWorkoutLog`) o no se sube.
+      Al vincular cuenta la nube manda; mesociclo autogenerado con fecha EPOCH (pierde contra la nube); otra cuenta
+      en el mismo dispositivo ⇒ `conflict` (no se mezcla). Pendiente: el perfil (XP/nivel) es «gana el último»;
+      si se entrena en dos móviles a la vez sin sincronizar se puede perder XP.
 - [ ] Progreso semanal: e1RM semanal + kcal/proteína media del diario de MacroQuest (sustituye el mock de nutrición).
 
 ### Fase 4 — Coach IA (API de Anthropic)

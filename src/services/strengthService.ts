@@ -15,6 +15,7 @@ import { MOCK_WEEKLY_NUTRITION } from "@/mocks/nutrition";
 import { MOCK_INITIAL_COACH_MESSAGES, MOCK_WEEKLY_REVIEW } from "@/mocks/workouts";
 import { uniqueId } from "@/lib/id";
 import { STORAGE_KEYS, readJson, removeKey, writeJson } from "@/services/storage";
+import { EPOCH, markDirty, resetSyncMeta } from "@/services/syncService";
 import type {
   Equipment,
   ExerciseGuide,
@@ -64,6 +65,7 @@ export function getUserProfile(): UserProfile {
 
 export function saveUserProfile(profile: UserProfile): void {
   writeJson(STORAGE_KEYS.profile, profile);
+  markDirty("profile", "me");
 }
 
 // ── Ejercicios ──────────────────────────────────────────────────────────────
@@ -168,6 +170,7 @@ export function getWorkoutLogs(): WorkoutLog[] {
 
 export function saveWorkoutLog(log: WorkoutLog): void {
   writeJson(STORAGE_KEYS.workouts, [...getWorkoutLogs().filter((l) => l.id !== log.id), log]);
+  markDirty("workouts", log.id);
 }
 
 /** Mejor e1RM registrado; para los básicos, el 1RM inicial del onboarding cuenta como marca. */
@@ -198,17 +201,19 @@ export function getKnownE1rms(): Record<string, number> {
 
 export function getActiveMesocycle(): Mesocycle {
   const saved = readJson<Mesocycle | null>(STORAGE_KEYS.mesocycle, null);
-  return saved ?? regenerateMesocycle(getUserProfile());
+  // Generado solo porque faltaba: pierde contra el de la nube (no es una decisión del usuario).
+  return saved ?? regenerateMesocycle(getUserProfile(), { auto: true });
 }
 
-export function saveMesocycle(mesocycle: Mesocycle): void {
+export function saveMesocycle(mesocycle: Mesocycle, { auto = false } = {}): void {
   writeJson(STORAGE_KEYS.mesocycle, mesocycle);
+  markDirty("mesocycle", "me", auto ? EPOCH : undefined);
 }
 
 /** Crea un mesociclo nuevo para el perfil usando el historial real como referencia de cargas. */
-export function regenerateMesocycle(profile: UserProfile): Mesocycle {
+export function regenerateMesocycle(profile: UserProfile, { auto = false } = {}): Mesocycle {
   const mesocycle = generateMesocycle(profile, EXERCISE_CATALOG, { knownE1rm: getKnownE1rms() });
-  saveMesocycle(mesocycle);
+  saveMesocycle(mesocycle, { auto });
   return mesocycle;
 }
 
@@ -509,4 +514,5 @@ export function getCoachReply(prompt: string): string {
 /** Borra todos los datos locales (perfil, mesociclo e historial). */
 export function resetLocalData(): void {
   Object.values(STORAGE_KEYS).forEach(removeKey);
+  resetSyncMeta();
 }

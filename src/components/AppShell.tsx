@@ -34,7 +34,7 @@ function renderView(view: AppView) {
 }
 
 export function AppShell() {
-  const { profile, view, hydrated } = useApp();
+  const { profile, view, hydrated, dataVersion } = useApp();
   const activeView: AppView = profile.onboardingCompleted ? view : "onboarding";
 
   // Layout effect: corre antes que los efectos de la página (p. ej. autoscroll del chat).
@@ -54,5 +54,11 @@ export function AppShell() {
     );
   }
 
-  return <MobileLayout>{renderView(activeView)}</MobileLayout>;
+  // Al llegar datos de otro dispositivo se vuelven a montar las pantallas (salvo el entreno en curso).
+  const viewKey = activeView === "entreno" ? "entreno" : `${activeView}-${dataVersion}`;
+  return (
+    <MobileLayout>
+      <div key={viewKey}>{renderView(activeView)}</div>
+    </MobileLayout>
+  );
 }
