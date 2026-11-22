@@ -26,6 +26,8 @@ Futuro: Supabase (auth + Postgres + Edge Functions), Capacitor (Android/iOS), St
   `RestTimerBar`, páginas Onboarding, Hoy, EntrenoActivo, Progreso.
 - Hecho: `routes/index.tsx` monta `AppProvider` + `AppShell` (switch de vistas).
 - Hecho: páginas Plan, Coach, Perfil.
+- Hecho (Fase 2): motor en `src/engine/*` (progresión, estancamiento, generador, sustitución, XP), catálogo en `src/data/exercises.ts`,
+  persistencia en localStorage vía `src/services/storage.ts`. Solo nutrición y coach siguen con mocks (Fases 3-4).
 
 ## Roadmap (hacer en orden, marcar [x] al terminar)
 
@@ -44,7 +46,7 @@ Futuro: Supabase (auth + Postgres + Edge Functions), Capacitor (Android/iOS), St
       Plantillas: Full body (2-3 días), Torso/Pierna (4), PPL (5-6), Powerlifting (básicos + %1RM). Descarga automática última semana.
 - [x] Persistencia local (localStorage/IndexedDB) de workouts y sets reales, sustituyendo mocks en services.
 - [x] Sustitución de ejercicio por otro del mismo músculo con recálculo de pesos.
-- [ ] Al terminar sesión: aplicar progresión, guardar PRs, sumar XP.
+- [x] Al terminar sesión: aplicar progresión, guardar PRs, sumar XP.
 
 ### Fase 3 — Backend Supabase (compartido con MacroQuest)
 - [ ] Preguntar al usuario por el proyecto Supabase de MacroQuest (URL + anon key en `.env`, nunca en git).

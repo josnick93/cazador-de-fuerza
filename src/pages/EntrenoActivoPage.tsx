@@ -4,9 +4,12 @@ import {
   ArrowRight,
   BarChart3,
   Check,
+  Equal,
   Minus,
   Plus,
   RefreshCw,
+  TrendingDown,
+  TrendingUp,
   Trophy,
   X,
 } from "lucide-react";
@@ -23,12 +26,22 @@ import {
   substituteExercise,
 } from "@/services/strengthService";
 import { parseRepRange } from "@/engine/progression";
-import type { ActiveSetRow, PlannedExercise, WorkoutSummary } from "@/types";
+import type { ActiveSetRow, PlannedExercise, ProgressionNote, WorkoutSummary } from "@/types";
 
 const RIR_OPTIONS = [0, 1, 2, 3, 4] as const;
 
+const PROGRESSION_META: Record<
+  ProgressionNote["decision"],
+  { icon: typeof TrendingUp; color: string }
+> = {
+  "increase-load": { icon: TrendingUp, color: "text-success" },
+  "add-rep": { icon: Plus, color: "text-primary" },
+  hold: { icon: Equal, color: "text-muted-foreground" },
+  "decrease-load": { icon: TrendingDown, color: "text-destructive" },
+};
+
 function buildInitialSets(planned: PlannedExercise): ActiveSetRow[] {
-  const reps = parseRepRange(planned.repRange).min;
+  const reps = planned.targetReps ?? parseRepRange(planned.repRange).min;
   return Array.from({ length: planned.sets }, (_, idx) => ({
     id: `set-${idx + 1}`,
     setNumber: idx + 1,
@@ -42,7 +55,7 @@ function buildInitialSets(planned: PlannedExercise): ActiveSetRow[] {
 }
 
 export function EntrenoActivoPage() {
-  const { profile, setView } = useApp();
+  const { profile, setView, updateProfile } = useApp();
   const [workout] = useState(() => getTodayWorkout());
 
   // Plan efectivo por ejercicio (cambia al sustituir); workout.exercises guarda el original.
@@ -95,7 +108,8 @@ export function EntrenoActivoPage() {
     if (!row || !currentExercise) return;
     const nowCompleted = !row.completed;
     const e1rm = calculateE1rm(row.kg, row.reps, row.rir);
-    const isPr = nowCompleted && e1rm > getBestE1rm(currentExercise.id);
+    const best = getBestE1rm(currentExercise.id);
+    const isPr = nowCompleted && best > 0 && e1rm > best;
 
     updateSet(setIdx, (r) => ({
       ...r,
@@ -131,49 +145,38 @@ export function EntrenoActivoPage() {
   };
 
   const finishWorkout = () => {
-    let totalVolumeKg = 0;
-    let completedSets = 0;
-    const prNames: string[] = [];
-
-    Object.entries(setsByExercise).forEach(([idxStr, rows]) => {
-      const idx = Number(idxStr);
-      const exId = plannedList[idx]?.exerciseId;
-      const ex = exId ? getExerciseById(exId) : undefined;
-      rows.forEach((row) => {
-        if (row.completed) {
-          completedSets += 1;
-          totalVolumeKg += row.kg * row.reps;
-          if (row.isPr && ex && !prNames.includes(ex.name)) {
-            prNames.push(ex.name);
-          }
-        }
-      });
-    });
-
     const durationSeconds = Math.max(elapsedSeconds, 60);
-    if (completedSets > 0) {
-      completeWorkout({
-        workout,
-        durationSeconds,
-        exercises: workout.exercises.map((planned, idx) => ({
-          exerciseId: plannedList[idx]?.exerciseId ?? planned.exerciseId,
-          plannedExerciseId: planned.exerciseId,
-          sets: (setsByExercise[idx] ?? [])
-            .filter((row) => row.completed)
-            .map(({ kg, reps, rir, e1rm, isPr }) => ({ kg, reps, rir, e1rm, isPr })),
-        })),
-      });
-    }
+    const exercises = workout.exercises.map((planned, idx) => ({
+      exerciseId: plannedList[idx]?.exerciseId ?? planned.exerciseId,
+      plannedExerciseId: planned.exerciseId,
+      sets: (setsByExercise[idx] ?? [])
+        .filter((row) => row.completed)
+        .map(({ kg, reps, rir }) => ({ kg, reps, rir })),
+    }));
 
     setRestSeconds(0);
-    setSummary({
-      workoutTitle: workout.title,
-      totalVolumeKg: Math.round(totalVolumeKg),
-      completedSets,
-      prsCount: prNames.length,
-      prNames,
-      durationSeconds,
-    });
+    if (exercises.every((ex) => ex.sets.length === 0)) {
+      // Sin series no se registra nada: la misión sigue pendiente.
+      setSummary({
+        workoutTitle: workout.title,
+        totalVolumeKg: 0,
+        completedSets: 0,
+        prsCount: 0,
+        prNames: [],
+        durationSeconds,
+        xpEarned: 0,
+        leveledUp: false,
+        newLevel: profile.level,
+        newRank: profile.hunterRank,
+        progressions: [],
+        mesocycleCompleted: false,
+      });
+      return;
+    }
+
+    const result = completeWorkout({ workout, durationSeconds, exercises, profile });
+    updateProfile(result.profilePatch);
+    setSummary(result.summary);
   };
 
   if (summary) {
@@ -186,7 +189,9 @@ export function EntrenoActivoPage() {
               <Trophy className="h-8 w-8" />
             </div>
             <p className="font-display text-xs font-bold uppercase tracking-widest text-primary">
-              MISIÓN COMPLETADA · +180 XP
+              {summary.completedSets > 0
+                ? `MISIÓN COMPLETADA · +${summary.xpEarned} XP`
+                : "MISIÓN SIN REGISTRAR"}
             </p>
             <h1 className="mt-1 font-display text-3xl font-bold text-foreground">
               {summary.workoutTitle}
@@ -222,6 +227,51 @@ export function EntrenoActivoPage() {
                   <li key={name}>• {name}</li>
                 ))}
               </ul>
+            </div>
+          )}
+
+          {summary.leveledUp && (
+            <div
+              role="status"
+              className="rounded-2xl border border-primary/50 bg-primary/10 p-4 text-center system-glow"
+            >
+              <p className="font-display text-lg font-bold text-primary">
+                ¡Subes a nivel {summary.newLevel}!
+              </p>
+              <p className="text-sm text-muted-foreground">{summary.newRank}</p>
+            </div>
+          )}
+
+          {summary.progressions.length > 0 && (
+            <div className="system-panel rounded-2xl p-4">
+              <p className="font-display text-sm font-bold uppercase tracking-wider text-foreground">
+                Próxima sesión
+              </p>
+              <ul className="mt-2 space-y-2">
+                {summary.progressions.map((p) => {
+                  const meta = PROGRESSION_META[p.decision];
+                  return (
+                    <li key={p.exerciseName} className="flex items-center gap-2.5 text-sm">
+                      <meta.icon className={`h-4 w-4 shrink-0 ${meta.color}`} />
+                      <span className="min-w-0 flex-1 truncate text-foreground">
+                        {p.exerciseName}
+                      </span>
+                      <span className={`shrink-0 font-semibold ${meta.color}`}>
+                        {formatWeight(p.nextKg, profile.unit)} × {p.nextTargetReps}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          )}
+
+          {summary.mesocycleCompleted && (
+            <div role="status" className="rounded-2xl border border-success/50 bg-success/10 p-4">
+              <p className="font-display text-sm font-bold text-success">Mesociclo completado</p>
+              <p className="mt-1 text-sm text-foreground">
+                Hemos generado tu siguiente mesociclo con tus nuevas marcas.
+              </p>
             </div>
           )}
         </div>

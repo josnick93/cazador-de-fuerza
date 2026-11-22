@@ -3,6 +3,12 @@ import { DEFAULT_PROFILE } from "@/data/defaultProfile";
 import { generateMesocycle } from "@/engine/generator";
 import { allSets, bestE1rm, formatSet, relativeDayLabel, weeklyBestE1rm } from "@/engine/history";
 import { detectPlateau } from "@/engine/plateau";
+import {
+  applyDoubleProgression,
+  applyProgressionToMesocycle,
+  type PerformedSet,
+} from "@/engine/progression";
+import { addXp, sessionXp } from "@/engine/xp";
 import { findAlternatives, substitutePlannedExercise } from "@/engine/substitution";
 import { MOCK_WEEKLY_NUTRITION } from "@/mocks/nutrition";
 import { MOCK_INITIAL_COACH_MESSAGES, MOCK_WEEKLY_REVIEW } from "@/mocks/workouts";
@@ -15,12 +21,14 @@ import type {
   GeneratedWeek,
   LiftId,
   LoggedExercise,
+  LoggedSet,
   Mesocycle,
   MesocycleWeek,
   MuscleGroup,
   PersonalRecord,
   PlannedExercise,
   PlannedSession,
+  ProgressionNote,
   StagnationAlert,
   UserProfile,
   WeeklyE1rmPoint,
@@ -28,9 +36,12 @@ import type {
   WeightUnit,
   WorkoutLog,
   WorkoutPlan,
+  WorkoutSummary,
 } from "@/types";
 
-export { calculateE1rm } from "@/engine/e1rm";
+import { calculateE1rm } from "@/engine/e1rm";
+
+export { calculateE1rm };
 
 export function formatWeight(kg: number, unit: WeightUnit): string {
   const value = unit === "lb" ? Math.round(kg * 2.20462 * 2) / 2 : Math.round(kg * 10) / 10;
@@ -225,23 +236,114 @@ export function getTodayWorkout(): WorkoutPlan {
 export interface CompleteWorkoutInput {
   workout: WorkoutPlan;
   durationSeconds: number;
-  exercises: LoggedExercise[];
+  /** Mismo orden que workout.exercises; exerciseId puede diferir si se sustituyó. */
+  exercises: { exerciseId: string; plannedExerciseId: string; sets: PerformedSet[] }[];
+  profile: UserProfile;
 }
 
-/** Registra la sesión terminada en el historial local. */
-export function completeWorkout(input: CompleteWorkoutInput): WorkoutLog {
+export interface CompleteWorkoutResult {
+  log: WorkoutLog;
+  summary: WorkoutSummary;
+  /** Cambios de XP/nivel/rango para guardar en el perfil. */
+  profilePatch: Pick<UserProfile, "xp" | "level" | "nextLevelXp" | "hunterRank">;
+}
+
+/**
+ * Cierra la sesión: marca PRs contra el mejor histórico, guarda el registro, aplica la doble
+ * progresión al resto del mesociclo, calcula XP y, si el mesociclo terminó, genera el siguiente.
+ */
+export function completeWorkout(input: CompleteWorkoutInput): CompleteWorkoutResult {
+  let mesocycle = getActiveMesocycle();
+  const progressions: ProgressionNote[] = [];
+  const prNames: string[] = [];
+  let totalVolumeKg = 0;
+  let completedSets = 0;
+
+  const exercises: LoggedExercise[] = input.exercises
+    .filter((ex) => ex.sets.length > 0)
+    .map((ex) => {
+      let best = getBestE1rm(ex.exerciseId);
+      const sets: LoggedSet[] = ex.sets.map((set) => {
+        const e1rm = calculateE1rm(set.kg, set.reps, set.rir);
+        const isPr = best > 0 && e1rm > best;
+        best = Math.max(best, e1rm);
+        completedSets += 1;
+        totalVolumeKg += set.kg * set.reps;
+        return { kg: set.kg, reps: set.reps, rir: set.rir, e1rm, isPr };
+      });
+      const exercise = getExerciseById(ex.exerciseId);
+      if (sets.some((s) => s.isPr) && exercise) prNames.push(exercise.name);
+      return { exerciseId: ex.exerciseId, plannedExerciseId: ex.plannedExerciseId, sets };
+    });
+
+  // Progresión: solo si se hizo el ejercicio del plan (un sustituto no aparece en sesiones futuras).
+  input.workout.exercises.forEach((planned, idx) => {
+    const done = input.exercises[idx];
+    if (!done || done.sets.length === 0 || done.exerciseId !== planned.exerciseId) return;
+    const prescription = {
+      kg: planned.targetKg,
+      repRange: planned.repRange,
+      targetRir: planned.targetRir,
+    };
+    const result = applyDoubleProgression(prescription, done.sets);
+    mesocycle = applyProgressionToMesocycle(
+      mesocycle,
+      input.workout.id,
+      planned.exerciseId,
+      prescription,
+      result,
+    );
+    progressions.push({
+      exerciseName: getExerciseById(planned.exerciseId)?.name ?? planned.exerciseId,
+      decision: result.decision,
+      nextKg: result.nextKg,
+      nextTargetReps: result.nextTargetReps,
+    });
+  });
+  saveMesocycle(mesocycle);
+
+  const xpEarned = sessionXp(completedSets, prNames.length);
   const log: WorkoutLog = {
     id: uniqueId("log"),
     sessionId: input.workout.id,
-    mesocycleId: getActiveMesocycle().id,
+    mesocycleId: mesocycle.id,
     title: input.workout.title,
     completedAt: new Date().toISOString(),
     durationSeconds: input.durationSeconds,
-    exercises: input.exercises.filter((ex) => ex.sets.length > 0),
-    xpEarned: 0,
+    exercises,
+    xpEarned,
   };
   saveWorkoutLog(log);
-  return log;
+
+  const { leveledUp, ...progress } = addXp(input.profile, xpEarned);
+  const profilePatch = {
+    xp: progress.xp,
+    level: progress.level,
+    nextLevelXp: progress.nextLevelXp,
+    hunterRank: progress.hunterRank,
+  };
+
+  const mesocycleCompleted = getNextSession(mesocycle) === null;
+  if (mesocycleCompleted) regenerateMesocycle({ ...input.profile, ...profilePatch });
+
+  return {
+    log,
+    profilePatch,
+    summary: {
+      workoutTitle: input.workout.title,
+      totalVolumeKg: Math.round(totalVolumeKg),
+      completedSets,
+      prsCount: prNames.length,
+      prNames,
+      durationSeconds: input.durationSeconds,
+      xpEarned,
+      leveledUp,
+      newLevel: progress.level,
+      newRank: progress.hunterRank,
+      progressions,
+      mesocycleCompleted,
+    },
+  };
 }
 
 // ── Progreso ────────────────────────────────────────────────────────────────

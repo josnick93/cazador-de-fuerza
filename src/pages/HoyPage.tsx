@@ -72,8 +72,11 @@ export function HoyPage() {
                     {exercise.name}
                   </p>
                   <p className="mt-0.5 text-sm font-semibold text-primary">
-                    {planned.sets} × {planned.repRange} @ RIR {planned.targetRir} ·{" "}
-                    {formatWeight(planned.targetKg, profile.unit)}
+                    {planned.sets} ×{" "}
+                    {planned.targetReps
+                      ? `${planned.targetReps} (${planned.repRange})`
+                      : planned.repRange}{" "}
+                    @ RIR {planned.targetRir} · {formatWeight(planned.targetKg, profile.unit)}
                   </p>
                   <p className="mt-0.5 text-xs text-muted-foreground">{planned.lastSessionText}</p>
                 </div>

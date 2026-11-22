@@ -64,6 +64,8 @@ export interface PlannedExercise {
   repRange: string;
   targetRir: number;
   targetKg: number;
+  /** Reps objetivo dentro del rango (doble progresión); si falta, el mínimo del rango. */
+  targetReps?: number;
   lastSessionText: string;
 }
 
@@ -149,6 +151,13 @@ export interface CoachMessage {
   timestamp: string;
 }
 
+export interface ProgressionNote {
+  exerciseName: string;
+  decision: "increase-load" | "decrease-load" | "add-rep" | "hold";
+  nextKg: number;
+  nextTargetReps: number;
+}
+
 export interface WorkoutSummary {
   workoutTitle: string;
   totalVolumeKg: number;
@@ -156,6 +165,12 @@ export interface WorkoutSummary {
   prsCount: number;
   prNames: string[];
   durationSeconds: number;
+  xpEarned: number;
+  leveledUp: boolean;
+  newLevel: number;
+  newRank: string;
+  progressions: ProgressionNote[];
+  mesocycleCompleted: boolean;
 }
 
 export type TemplateId = "full-body" | "torso-pierna" | "ppl" | "powerlifting";

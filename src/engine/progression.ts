@@ -1,3 +1,5 @@
+import type { Mesocycle } from "@/types";
+
 export interface RepRange {
   min: number;
   max: number;
@@ -99,4 +101,50 @@ export function applyDoubleProgression(
     nextTargetReps: nextReps,
     reason: `Mismo peso, objetivo ${nextReps} reps por serie.`,
   };
+}
+
+/**
+ * Lleva el resultado de la progresión al resto del mesociclo (sesiones posteriores a
+ * `fromSessionId`). La siguiente aparición con el mismo esquema (rango + RIR) recibe la carga y
+ * reps exactas; las demás (otra fase, descarga, %1RM) se desplazan la misma diferencia de carga.
+ */
+export function applyProgressionToMesocycle(
+  mesocycle: Mesocycle,
+  fromSessionId: string,
+  exerciseId: string,
+  prescription: Prescription,
+  result: ProgressionResult,
+): Mesocycle {
+  const delta = round2(result.nextKg - prescription.kg);
+  let started = false;
+  let exactApplied = false;
+
+  const weeks = mesocycle.weeks.map((week) => ({
+    ...week,
+    sessions: week.sessions.map((session) => {
+      if (!started) {
+        if (session.id === fromSessionId) started = true;
+        return session;
+      }
+      return {
+        ...session,
+        exercises: session.exercises.map((pe) => {
+          if (pe.exerciseId !== exerciseId) return pe;
+          const sameScheme =
+            pe.repRange === prescription.repRange && pe.targetRir === prescription.targetRir;
+          if (sameScheme && !exactApplied) {
+            exactApplied = true;
+            return { ...pe, targetKg: result.nextKg, targetReps: result.nextTargetReps };
+          }
+          if (delta === 0) return pe;
+          return {
+            ...pe,
+            targetKg: round2(Math.max(DEFAULT_INCREMENT_KG / 2, pe.targetKg + delta)),
+          };
+        }),
+      };
+    }),
+  }));
+
+  return { ...mesocycle, weeks };
 }

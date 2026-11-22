@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { applyDoubleProgression, parseRepRange } from "./progression";
+import type { Mesocycle } from "@/types";
+import { applyDoubleProgression, applyProgressionToMesocycle, parseRepRange } from "./progression";
 
 const rx = { kg: 80, repRange: "6-8", targetRir: 2 };
 const sets = (...rows: [number, number, number][]) =>
@@ -55,5 +56,77 @@ describe("applyDoubleProgression", () => {
     expect(applyDoubleProgression(rx, sets([80, 8, 2]), 5).nextKg).toBe(85);
     const light = { kg: 2.5, repRange: "10-12", targetRir: 2 };
     expect(applyDoubleProgression(light, sets([2.5, 8, 0])).nextKg).toBe(2.5);
+  });
+});
+
+describe("applyProgressionToMesocycle", () => {
+  const pe = (exerciseId: string, targetKg: number, repRange = "6-8", targetRir = 2) => ({
+    exerciseId,
+    sets: 3,
+    repRange,
+    targetRir,
+    targetKg,
+    lastSessionText: "",
+  });
+  const session = (id: string, exercises: ReturnType<typeof pe>[]) => ({
+    id,
+    dayLabel: "Lun",
+    title: id,
+    focus: "",
+    muscles: [],
+    estimatedMinutes: 50,
+    exercises,
+  });
+  const meso: Mesocycle = {
+    id: "m",
+    createdAt: "",
+    goal: "fuerza",
+    template: "torso-pierna",
+    templateName: "",
+    weeks: [
+      {
+        weekNumber: 1,
+        phase: "Acumulación",
+        intensityLabel: "",
+        targetRir: 2,
+        sessions: [
+          session("s1", [pe("banca", 80), pe("remo", 70)]),
+          session("s2", [pe("sentadilla", 100)]),
+        ],
+      },
+      {
+        weekNumber: 2,
+        phase: "Intensificación",
+        intensityLabel: "",
+        targetRir: 2,
+        sessions: [session("s3", [pe("banca", 80)]), session("s4", [pe("banca", 85, "4-6", 1)])],
+      },
+    ],
+  };
+  const rx = { kg: 80, repRange: "6-8", targetRir: 2 };
+
+  it("aplica carga y reps exactas a la siguiente sesión con el mismo esquema y desplaza el resto", () => {
+    const result = applyDoubleProgression(rx, sets([80, 8, 2], [80, 8, 2]));
+    const next = applyProgressionToMesocycle(meso, "s1", "banca", rx, result);
+    const banca = (sid: string) =>
+      next.weeks.flatMap((w) => w.sessions).find((s) => s.id === sid)!.exercises[0]!;
+    expect(banca("s1").targetKg).toBe(80); // la sesión hecha no cambia
+    expect(banca("s3")).toMatchObject({ targetKg: 82.5, targetReps: 6 });
+    expect(banca("s4").targetKg).toBe(87.5); // otra fase: +2,5
+  });
+
+  it("add-rep fija las reps objetivo sin tocar cargas futuras", () => {
+    const result = applyDoubleProgression(rx, sets([80, 6, 2], [80, 6, 2]));
+    const next = applyProgressionToMesocycle(meso, "s1", "banca", rx, result);
+    const all = next.weeks.flatMap((w) => w.sessions);
+    expect(all[2]!.exercises[0]).toMatchObject({ targetKg: 80, targetReps: 7 });
+    expect(all[3]!.exercises[0]!.targetKg).toBe(85);
+    expect(all[0]!.exercises[1]!.targetKg).toBe(70);
+  });
+
+  it("no modifica el mesociclo original", () => {
+    const result = applyDoubleProgression(rx, sets([80, 8, 2]));
+    applyProgressionToMesocycle(meso, "s1", "banca", rx, result);
+    expect(meso.weeks[1]!.sessions[0]!.exercises[0]!.targetKg).toBe(80);
   });
 });

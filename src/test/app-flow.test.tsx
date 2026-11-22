@@ -62,12 +62,15 @@ describe("Flujo de la app", () => {
 
     fireEvent.click(screen.getAllByRole("button", { name: "Hecho" })[0]!);
     fireEvent.click(screen.getByRole("button", { name: "Terminar" }));
-    expect(screen.getByText(/MISIÓN COMPLETADA/)).toBeInTheDocument();
+    expect(screen.getByText("MISIÓN COMPLETADA · +105 XP")).toBeInTheDocument();
+    expect(screen.getByText("Próxima sesión")).toBeInTheDocument();
     expect(getWorkoutLogs()).toHaveLength(1);
+    expect(screen.queryByText(/Nv\. 1 · 105\/500 XP/)).not.toBeInTheDocument(); // header oculto en entreno
 
     fireEvent.click(screen.getByRole("button", { name: /Ver progreso/ }));
     expect(screen.getByRole("heading", { name: "Progreso de Fuerza" })).toBeInTheDocument();
 
+    expect(screen.getByText(/Nv\. 1 · 105\/500 XP/)).toBeInTheDocument();
     fireEvent.click(nav().getByRole("button", { name: "Hoy" }));
     expect(screen.getByRole("heading", { name: "Pierna A" })).toBeInTheDocument();
   });
