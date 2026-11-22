@@ -1,5 +1,5 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
-import { getUserProfile } from "@/services/strengthService";
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import { getDefaultProfile, getUserProfile, saveUserProfile } from "@/services/strengthService";
 import type { UserProfile } from "@/types";
 
 export type MainTab = "hoy" | "progreso" | "plan" | "coach";
@@ -7,7 +7,10 @@ export type AppView = MainTab | "entreno" | "perfil" | "onboarding";
 
 interface AppContextValue {
   profile: UserProfile;
-  updateProfile: (patch: Partial<UserProfile>) => void;
+  /** false hasta leer el almacenamiento local (en SSR y primer render del cliente). */
+  hydrated: boolean;
+  /** Guarda de inmediato y devuelve el perfil resultante. */
+  updateProfile: (patch: Partial<UserProfile>) => UserProfile;
   view: AppView;
   setView: (view: AppView) => void;
   coachPendingPrompt: string | null;
@@ -15,36 +18,29 @@ interface AppContextValue {
   clearCoachPendingPrompt: () => void;
 }
 
-const STORAGE_KEY = "ironquest_profile_v1";
 const AppContext = createContext<AppContextValue | null>(null);
 
 export function AppProvider({ children }: { children: ReactNode }) {
-  const [profile, setProfile] = useState<UserProfile>(() => getUserProfile());
+  // El servidor no tiene localStorage: arrancamos con el perfil por defecto y cargamos al montar.
+  const [profile, setProfile] = useState<UserProfile>(() => getDefaultProfile());
+  const profileRef = useRef(profile);
+  const [hydrated, setHydrated] = useState(false);
   const [view, setView] = useState<AppView>("hoy");
   const [coachPendingPrompt, setCoachPendingPrompt] = useState<string | null>(null);
 
   useEffect(() => {
-    try {
-      const raw = window.localStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        const saved = JSON.parse(raw) as Partial<UserProfile>;
-        setProfile((prev) => ({ ...prev, ...saved }));
-      }
-    } catch {
-      // Ignore malformed storage
-    }
+    const saved = getUserProfile();
+    profileRef.current = saved;
+    setProfile(saved);
+    setHydrated(true);
   }, []);
 
   const updateProfile = (patch: Partial<UserProfile>) => {
-    setProfile((prev) => {
-      const next = { ...prev, ...patch };
-      try {
-        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-      } catch {
-        // Ignore storage errors
-      }
-      return next;
-    });
+    const next = { ...profileRef.current, ...patch };
+    profileRef.current = next;
+    saveUserProfile(next);
+    setProfile(next);
+    return next;
   };
 
   const openCoachWithPrompt = (prompt: string) => {
@@ -58,6 +54,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     <AppContext.Provider
       value={{
         profile,
+        hydrated,
         updateProfile,
         view,
         setView,

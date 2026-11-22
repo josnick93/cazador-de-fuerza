@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { AlertTriangle, ArrowRight, Trophy } from "lucide-react";
+import { AlertTriangle, ArrowRight, LineChart, Trophy } from "lucide-react";
 import {
   CartesianGrid,
   ComposedChart,
@@ -30,8 +30,10 @@ export function ProgresoPage() {
   const stagnation = getStagnationAlert(selectedLift);
   const recentPrs = getRecentPRs();
 
+  // Nutrición alineada por el final: la última semana de fuerza con la última de MacroQuest.
+  const nutritionOffset = nutrition.length - e1rmHistory.length;
   const chartData = e1rmHistory.map((point, idx) => {
-    const nut = nutrition[idx];
+    const nut = nutrition[nutritionOffset + idx];
     return {
       week: point.week,
       e1rm: point.e1rmKg,
@@ -81,7 +83,9 @@ export function ProgresoPage() {
               <p className="mt-1 text-xs text-muted-foreground">{stagnation.cause}</p>
               <button
                 type="button"
-                onClick={() => openCoachWithPrompt("¿Por qué no subo en banca?")}
+                onClick={() =>
+                  openCoachWithPrompt(`¿Por qué no subo en ${stagnation.liftName.toLowerCase()}?`)
+                }
                 className="mt-3 inline-flex min-h-[48px] items-center gap-1.5 rounded-xl bg-destructive px-4 font-display text-sm font-bold text-destructive-foreground"
               >
                 Ver por qué
@@ -92,104 +96,123 @@ export function ProgresoPage() {
         </section>
       )}
 
-      <section className="system-panel rounded-2xl p-4">
-        <div className="mb-3 flex items-baseline justify-between">
-          <div>
-            <p className="text-xs font-medium text-muted-foreground">e1RM actual (8 semanas)</p>
-            <p className="tabular-nums-display text-3xl font-bold text-foreground">
-              {latest ? formatWeight(latest.e1rmKg, profile.unit) : "—"}
-            </p>
+      {e1rmHistory.length === 0 ? (
+        <section className="system-panel rounded-2xl p-6 text-center">
+          <LineChart className="mx-auto h-8 w-8 text-primary" />
+          <p className="mt-2 font-display text-base font-bold text-foreground">
+            Sin datos de {lifts.find((l) => l.id === selectedLift)?.label}
+          </p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Completa sesiones con este ejercicio y aquí verás tu e1RM semanal junto a tu nutrición.
+          </p>
+        </section>
+      ) : (
+        <section className="system-panel rounded-2xl p-4">
+          <div className="mb-3 flex items-baseline justify-between">
+            <div>
+              <p className="text-xs font-medium text-muted-foreground">
+                e1RM actual ({e1rmHistory.length} sem)
+              </p>
+              <p className="tabular-nums-display text-3xl font-bold text-foreground">
+                {latest ? formatWeight(latest.e1rmKg, profile.unit) : "—"}
+              </p>
+            </div>
+            <span className="rounded-lg border border-primary/40 bg-primary/15 px-2.5 py-1 font-display text-xs font-bold text-primary">
+              {delta >= 0 ? `+${delta}` : delta} kg en {e1rmHistory.length} sem
+            </span>
           </div>
-          <span className="rounded-lg border border-primary/40 bg-primary/15 px-2.5 py-1 font-display text-xs font-bold text-primary">
-            {delta >= 0 ? `+${delta}` : delta} kg en 8 sem
-          </span>
-        </div>
 
-        <div className="h-56 w-full">
-          <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart data={chartData} margin={{ top: 8, right: 4, left: -20, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" opacity={0.5} />
-              <XAxis dataKey="week" stroke="var(--muted-foreground)" fontSize={11} />
-              <YAxis
-                yAxisId="left"
-                stroke="var(--chart-1)"
-                fontSize={11}
-                domain={["dataMin - 4", "dataMax + 4"]}
-              />
-              <YAxis
-                yAxisId="right"
-                orientation="right"
-                stroke="var(--chart-2)"
-                fontSize={10}
-                domain={[100, 200]}
-                hide
-              />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: "var(--card)",
-                  borderColor: "var(--border)",
-                  borderRadius: "12px",
-                  fontSize: "12px",
-                }}
-                formatter={(value, name, item) => {
-                  if (name === "e1rm") return [`${value} kg`, "e1RM"];
-                  if (name === "proteinG") return [`${value} g/día`, "Proteína"];
-                  if (name === "kcalIndex") {
-                    const raw = (item.payload as { kcalRaw?: number })?.kcalRaw ?? 0;
-                    return [`${raw} kcal`, "Kcal media"];
-                  }
-                  return [String(value), String(name)];
-                }}
-              />
-              <Line
-                yAxisId="left"
-                type="monotone"
-                dataKey="e1rm"
-                stroke="var(--chart-1)"
-                strokeWidth={3}
-                dot={{ r: 4, fill: "var(--chart-1)" }}
-              />
-              <Line
-                yAxisId="right"
-                type="monotone"
-                dataKey="proteinG"
-                stroke="var(--chart-2)"
-                strokeWidth={1.5}
-                strokeDasharray="4 4"
-                dot={false}
-              />
-              <Line
-                yAxisId="right"
-                type="monotone"
-                dataKey="kcalIndex"
-                stroke="var(--chart-3)"
-                strokeWidth={1.5}
-                dot={false}
-              />
-            </ComposedChart>
-          </ResponsiveContainer>
-        </div>
+          <div className="h-56 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <ComposedChart data={chartData} margin={{ top: 8, right: 4, left: -20, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" opacity={0.5} />
+                <XAxis dataKey="week" stroke="var(--muted-foreground)" fontSize={11} />
+                <YAxis
+                  yAxisId="left"
+                  stroke="var(--chart-1)"
+                  fontSize={11}
+                  domain={["dataMin - 4", "dataMax + 4"]}
+                />
+                <YAxis
+                  yAxisId="right"
+                  orientation="right"
+                  stroke="var(--chart-2)"
+                  fontSize={10}
+                  domain={[100, 200]}
+                  hide
+                />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: "var(--card)",
+                    borderColor: "var(--border)",
+                    borderRadius: "12px",
+                    fontSize: "12px",
+                  }}
+                  formatter={(value, name, item) => {
+                    if (name === "e1rm") return [`${value} kg`, "e1RM"];
+                    if (name === "proteinG") return [`${value} g/día`, "Proteína"];
+                    if (name === "kcalIndex") {
+                      const raw = (item.payload as { kcalRaw?: number })?.kcalRaw ?? 0;
+                      return [`${raw} kcal`, "Kcal media"];
+                    }
+                    return [String(value), String(name)];
+                  }}
+                />
+                <Line
+                  yAxisId="left"
+                  type="monotone"
+                  dataKey="e1rm"
+                  stroke="var(--chart-1)"
+                  strokeWidth={3}
+                  dot={{ r: 4, fill: "var(--chart-1)" }}
+                />
+                <Line
+                  yAxisId="right"
+                  type="monotone"
+                  dataKey="proteinG"
+                  stroke="var(--chart-2)"
+                  strokeWidth={1.5}
+                  strokeDasharray="4 4"
+                  dot={false}
+                />
+                <Line
+                  yAxisId="right"
+                  type="monotone"
+                  dataKey="kcalIndex"
+                  stroke="var(--chart-3)"
+                  strokeWidth={1.5}
+                  dot={false}
+                />
+              </ComposedChart>
+            </ResponsiveContainer>
+          </div>
 
-        <div className="mt-3 flex flex-wrap items-center gap-3 text-[11px] text-muted-foreground">
-          <span className="inline-flex items-center gap-1.5">
-            <span className="h-2 w-2 rounded-full bg-chart-1" />
-            e1RM (kg)
-          </span>
-          <span className="inline-flex items-center gap-1.5">
-            <span className="h-2 w-2 rounded-full bg-chart-2" />
-            Proteína media (g)
-          </span>
-          <span className="inline-flex items-center gap-1.5">
-            <span className="h-2 w-2 rounded-full bg-chart-3" />
-            Kcal media
-          </span>
-        </div>
-      </section>
+          <div className="mt-3 flex flex-wrap items-center gap-3 text-[11px] text-muted-foreground">
+            <span className="inline-flex items-center gap-1.5">
+              <span className="h-2 w-2 rounded-full bg-chart-1" />
+              e1RM (kg)
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <span className="h-2 w-2 rounded-full bg-chart-2" />
+              Proteína media (g)
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <span className="h-2 w-2 rounded-full bg-chart-3" />
+              Kcal media
+            </span>
+          </div>
+        </section>
+      )}
 
       <section className="space-y-2.5">
         <h2 className="font-display text-base font-bold uppercase tracking-wider text-foreground">
           PRs recientes
         </h2>
+        {recentPrs.length === 0 && (
+          <p className="rounded-2xl border border-dashed border-border p-4 text-center text-sm text-muted-foreground">
+            Aún no hay récords. Supera tu mejor e1RM en cualquier ejercicio para registrar uno.
+          </p>
+        )}
         {recentPrs.map((pr) => (
           <div
             key={pr.id}
@@ -212,7 +235,9 @@ export function ProgresoPage() {
               <p className="tabular-nums-display text-base font-bold text-foreground">
                 {formatWeight(pr.e1rmKg, profile.unit)}
               </p>
-              <p className="text-xs font-semibold text-success">+{pr.deltaKg} kg</p>
+              <p className="text-xs font-semibold text-success">
+                {pr.deltaKg > 0 ? `+${pr.deltaKg} kg` : "Nueva marca"}
+              </p>
             </div>
           </div>
         ))}

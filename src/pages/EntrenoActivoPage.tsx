@@ -2,10 +2,14 @@ import { useEffect, useState } from "react";
 import {
   ArrowLeft,
   ArrowRight,
+  BarChart3,
   Check,
+  Equal,
   Minus,
   Plus,
   RefreshCw,
+  TrendingDown,
+  TrendingUp,
   Trophy,
   X,
 } from "lucide-react";
@@ -14,43 +18,53 @@ import { RestTimerBar } from "@/components/RestTimerBar";
 import {
   calculateE1rm,
   formatWeight,
+  getBestE1rm,
   getExerciseById,
-  getExercisesByMuscle,
+  getAlternatives,
+  completeWorkout,
   getTodayWorkout,
+  substituteExercise,
 } from "@/services/strengthService";
-import type { ActiveSetRow, WorkoutSummary } from "@/types";
+import { parseRepRange } from "@/engine/progression";
+import type { ActiveSetRow, PlannedExercise, ProgressionNote, WorkoutSummary } from "@/types";
 
 const RIR_OPTIONS = [0, 1, 2, 3, 4] as const;
 
-function buildInitialSets(
-  setsCount: number,
-  targetKg: number,
-  targetRir: number,
-): ActiveSetRow[] {
-  return Array.from({ length: setsCount }, (_, idx) => ({
+const PROGRESSION_META: Record<
+  ProgressionNote["decision"],
+  { icon: typeof TrendingUp; color: string }
+> = {
+  "increase-load": { icon: TrendingUp, color: "text-success" },
+  "add-rep": { icon: Plus, color: "text-primary" },
+  hold: { icon: Equal, color: "text-muted-foreground" },
+  "decrease-load": { icon: TrendingDown, color: "text-destructive" },
+};
+
+function buildInitialSets(planned: PlannedExercise): ActiveSetRow[] {
+  const reps = planned.targetReps ?? parseRepRange(planned.repRange).min;
+  return Array.from({ length: planned.sets }, (_, idx) => ({
     id: `set-${idx + 1}`,
     setNumber: idx + 1,
-    kg: targetKg,
-    reps: 8,
-    rir: targetRir,
+    kg: planned.targetKg,
+    reps,
+    rir: planned.targetRir,
     completed: false,
     isPr: false,
-    e1rm: calculateE1rm(targetKg, 8, targetRir),
+    e1rm: calculateE1rm(planned.targetKg, reps, planned.targetRir),
   }));
 }
 
 export function EntrenoActivoPage() {
-  const { profile, setView } = useApp();
-  const workout = getTodayWorkout();
+  const { profile, setView, updateProfile } = useApp();
+  const [workout] = useState(() => getTodayWorkout());
 
-  const [exerciseIds, setExerciseIds] = useState<string[]>(() =>
-    workout.exercises.map((e) => e.exerciseId),
-  );
+  // Plan efectivo por ejercicio (cambia al sustituir); workout.exercises guarda el original.
+  const [plannedList, setPlannedList] = useState<PlannedExercise[]>(() => workout.exercises);
   const [currentIdx, setCurrentIdx] = useState(0);
   const [setsByExercise, setSetsByExercise] = useState<Record<number, ActiveSetRow[]>>(() => {
     const map: Record<number, ActiveSetRow[]> = {};
     workout.exercises.forEach((planned, idx) => {
-      map[idx] = buildInitialSets(planned.sets, planned.targetKg, planned.targetRir);
+      map[idx] = buildInitialSets(planned);
     });
     return map;
   });
@@ -76,9 +90,9 @@ export function EntrenoActivoPage() {
     return () => window.clearInterval(timer);
   }, [restSeconds]);
 
-  const currentPlanned = workout.exercises[currentIdx];
-  const currentExerciseId = exerciseIds[currentIdx] ?? currentPlanned?.exerciseId ?? "";
-  const currentExercise = getExerciseById(currentExerciseId);
+  const originalPlanned = workout.exercises[currentIdx];
+  const currentPlanned = plannedList[currentIdx];
+  const currentExercise = currentPlanned ? getExerciseById(currentPlanned.exerciseId) : undefined;
   const currentSets = setsByExercise[currentIdx] ?? [];
 
   const updateSet = (setIdx: number, updater: (row: ActiveSetRow) => ActiveSetRow) => {
@@ -94,7 +108,8 @@ export function EntrenoActivoPage() {
     if (!row || !currentExercise) return;
     const nowCompleted = !row.completed;
     const e1rm = calculateE1rm(row.kg, row.reps, row.rir);
-    const isPr = nowCompleted && e1rm > currentExercise.bestE1rmKg;
+    const best = getBestE1rm(currentExercise.id);
+    const isPr = nowCompleted && best > 0 && e1rm > best;
 
     updateSet(setIdx, (r) => ({
       ...r,
@@ -109,39 +124,59 @@ export function EntrenoActivoPage() {
   };
 
   const handleSwapExercise = (newExerciseId: string) => {
-    setExerciseIds((prev) => prev.map((id, i) => (i === currentIdx ? newExerciseId : id)));
+    if (!originalPlanned) return;
+    // Siempre desde el original: volver a él recupera exactamente su carga.
+    const next = substituteExercise(originalPlanned, newExerciseId);
+    setPlannedList((prev) => prev.map((p, i) => (i === currentIdx ? next : p)));
+    setSetsByExercise((prev) => ({
+      ...prev,
+      [currentIdx]: (prev[currentIdx] ?? []).map((row) =>
+        row.completed
+          ? row
+          : {
+              ...row,
+              kg: next.targetKg,
+              isPr: false,
+              e1rm: calculateE1rm(next.targetKg, row.reps, row.rir),
+            },
+      ),
+    }));
     setShowSwapModal(false);
   };
 
   const finishWorkout = () => {
-    let totalVolumeKg = 0;
-    let completedSets = 0;
-    const prNames: string[] = [];
-
-    Object.entries(setsByExercise).forEach(([idxStr, rows]) => {
-      const idx = Number(idxStr);
-      const exId = exerciseIds[idx];
-      const ex = exId ? getExerciseById(exId) : undefined;
-      rows.forEach((row) => {
-        if (row.completed) {
-          completedSets += 1;
-          totalVolumeKg += row.kg * row.reps;
-          if (row.isPr && ex && !prNames.includes(ex.name)) {
-            prNames.push(ex.name);
-          }
-        }
-      });
-    });
+    const durationSeconds = Math.max(elapsedSeconds, 60);
+    const exercises = workout.exercises.map((planned, idx) => ({
+      exerciseId: plannedList[idx]?.exerciseId ?? planned.exerciseId,
+      plannedExerciseId: planned.exerciseId,
+      sets: (setsByExercise[idx] ?? [])
+        .filter((row) => row.completed)
+        .map(({ kg, reps, rir }) => ({ kg, reps, rir })),
+    }));
 
     setRestSeconds(0);
-    setSummary({
-      workoutTitle: workout.title,
-      totalVolumeKg: Math.round(totalVolumeKg),
-      completedSets,
-      prsCount: prNames.length,
-      prNames,
-      durationSeconds: Math.max(elapsedSeconds, 60),
-    });
+    if (exercises.every((ex) => ex.sets.length === 0)) {
+      // Sin series no se registra nada: la misión sigue pendiente.
+      setSummary({
+        workoutTitle: workout.title,
+        totalVolumeKg: 0,
+        completedSets: 0,
+        prsCount: 0,
+        prNames: [],
+        durationSeconds,
+        xpEarned: 0,
+        leveledUp: false,
+        newLevel: profile.level,
+        newRank: profile.hunterRank,
+        progressions: [],
+        mesocycleCompleted: false,
+      });
+      return;
+    }
+
+    const result = completeWorkout({ workout, durationSeconds, exercises, profile });
+    updateProfile(result.profilePatch);
+    setSummary(result.summary);
   };
 
   if (summary) {
@@ -154,7 +189,9 @@ export function EntrenoActivoPage() {
               <Trophy className="h-8 w-8" />
             </div>
             <p className="font-display text-xs font-bold uppercase tracking-widest text-primary">
-              MISIÓN COMPLETADA · +180 XP
+              {summary.completedSets > 0
+                ? `MISIÓN COMPLETADA · +${summary.xpEarned} XP`
+                : "MISIÓN SIN REGISTRAR"}
             </p>
             <h1 className="mt-1 font-display text-3xl font-bold text-foreground">
               {summary.workoutTitle}
@@ -176,9 +213,7 @@ export function EntrenoActivoPage() {
             </div>
             <div className="system-panel rounded-2xl p-3.5 text-center">
               <p className="text-[11px] uppercase tracking-wider text-muted-foreground">Duración</p>
-              <p className="tabular-nums-display mt-1 text-xl font-bold text-primary">
-                {mins} min
-              </p>
+              <p className="tabular-nums-display mt-1 text-xl font-bold text-primary">{mins} min</p>
             </div>
           </div>
 
@@ -194,22 +229,85 @@ export function EntrenoActivoPage() {
               </ul>
             </div>
           )}
+
+          {summary.leveledUp && (
+            <div
+              role="status"
+              className="rounded-2xl border border-primary/50 bg-primary/10 p-4 text-center system-glow"
+            >
+              <p className="font-display text-lg font-bold text-primary">
+                ¡Subes a nivel {summary.newLevel}!
+              </p>
+              <p className="text-sm text-muted-foreground">{summary.newRank}</p>
+            </div>
+          )}
+
+          {summary.progressions.length > 0 && (
+            <div className="system-panel rounded-2xl p-4">
+              <p className="font-display text-sm font-bold uppercase tracking-wider text-foreground">
+                Próxima sesión
+              </p>
+              <ul className="mt-2 space-y-2">
+                {summary.progressions.map((p) => {
+                  const meta = PROGRESSION_META[p.decision];
+                  return (
+                    <li key={p.exerciseName} className="flex items-center gap-2.5 text-sm">
+                      <meta.icon className={`h-4 w-4 shrink-0 ${meta.color}`} />
+                      <span className="min-w-0 flex-1 truncate text-foreground">
+                        {p.exerciseName}
+                      </span>
+                      <span className={`shrink-0 font-semibold ${meta.color}`}>
+                        {formatWeight(p.nextKg, profile.unit)} × {p.nextTargetReps}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          )}
+
+          {summary.mesocycleCompleted && (
+            <div role="status" className="rounded-2xl border border-success/50 bg-success/10 p-4">
+              <p className="font-display text-sm font-bold text-success">Mesociclo completado</p>
+              <p className="mt-1 text-sm text-foreground">
+                Hemos generado tu siguiente mesociclo con tus nuevas marcas.
+              </p>
+            </div>
+          )}
         </div>
 
-        <button
-          type="button"
-          onClick={() => setView("hoy")}
-          className="mt-8 flex min-h-[56px] w-full items-center justify-center rounded-xl bg-primary font-display text-lg font-bold text-primary-foreground system-glow"
-        >
-          Volver a Hoy
-        </button>
+        <div className="mt-8 space-y-2.5">
+          <button
+            type="button"
+            onClick={() => setView("progreso")}
+            className="flex min-h-[56px] w-full items-center justify-center gap-2 rounded-xl bg-primary font-display text-lg font-bold text-primary-foreground system-glow"
+          >
+            <BarChart3 className="h-5 w-5" />
+            Ver progreso
+          </button>
+          <button
+            type="button"
+            onClick={() => setView("hoy")}
+            className="flex min-h-[52px] w-full items-center justify-center rounded-xl border border-border bg-surface font-display text-base font-bold text-foreground"
+          >
+            Volver a Hoy
+          </button>
+        </div>
       </div>
     );
   }
 
   if (!currentExercise || !currentPlanned) return null;
 
-  const alternatives = getExercisesByMuscle(currentExercise.muscle);
+  const swapOptions = [
+    currentExercise,
+    ...(originalPlanned && originalPlanned.exerciseId !== currentExercise.id
+      ? [getExerciseById(originalPlanned.exerciseId)].filter((e) => e !== undefined)
+      : []),
+    ...getAlternatives(originalPlanned?.exerciseId ?? currentExercise.id).filter(
+      (e) => e.id !== currentExercise.id,
+    ),
+  ];
   const elapsedMins = Math.floor(elapsedSeconds / 60);
   const elapsedSecs = elapsedSeconds % 60;
 
@@ -271,9 +369,7 @@ export function EntrenoActivoPage() {
             <div
               key={row.id}
               className={`rounded-2xl border p-3.5 transition-all ${
-                row.completed
-                  ? "border-success/50 bg-success/10"
-                  : "border-border bg-card"
+                row.completed ? "border-success/50 bg-success/10" : "border-border bg-card"
               }`}
             >
               <div className="mb-3 flex items-center justify-between">
@@ -300,9 +396,7 @@ export function EntrenoActivoPage() {
                     <button
                       type="button"
                       aria-label="Restar 2,5 kg"
-                      onClick={() =>
-                        updateSet(idx, (r) => ({ ...r, kg: Math.max(0, r.kg - 2.5) }))
-                      }
+                      onClick={() => updateSet(idx, (r) => ({ ...r, kg: Math.max(0, r.kg - 2.5) }))}
                       className="grid h-12 w-11 shrink-0 place-items-center rounded-lg bg-card text-foreground active:scale-95"
                     >
                       <Minus className="h-4 w-4" />
@@ -446,21 +540,32 @@ export function EntrenoActivoPage() {
               </button>
             </div>
             <div className="space-y-2">
-              {alternatives.map((alt) => (
-                <button
-                  key={alt.id}
-                  type="button"
-                  onClick={() => handleSwapExercise(alt.id)}
-                  className={`flex min-h-[52px] w-full items-center justify-between rounded-xl border px-3.5 text-left text-sm font-semibold ${
-                    alt.id === currentExercise.id
-                      ? "border-primary bg-primary/15 text-primary"
-                      : "border-border bg-surface text-foreground"
-                  }`}
-                >
-                  <span>{alt.name}</span>
-                  {alt.id === currentExercise.id && <Check className="h-4 w-4" />}
-                </button>
-              ))}
+              {swapOptions.map((alt) => {
+                const selected = alt.id === currentExercise.id;
+                const kg = selected
+                  ? currentPlanned.targetKg
+                  : originalPlanned
+                    ? substituteExercise(originalPlanned, alt.id).targetKg
+                    : currentPlanned.targetKg;
+                return (
+                  <button
+                    key={alt.id}
+                    type="button"
+                    onClick={() => handleSwapExercise(alt.id)}
+                    className={`flex min-h-[52px] w-full items-center justify-between gap-2 rounded-xl border px-3.5 text-left text-sm font-semibold ${
+                      selected
+                        ? "border-primary bg-primary/15 text-primary"
+                        : "border-border bg-surface text-foreground"
+                    }`}
+                  >
+                    <span className="min-w-0 flex-1">{alt.name}</span>
+                    <span className="shrink-0 text-xs text-muted-foreground">
+                      {formatWeight(kg, profile.unit)}
+                    </span>
+                    {selected && <Check className="h-4 w-4 shrink-0" />}
+                  </button>
+                );
+              })}
             </div>
           </div>
         </div>

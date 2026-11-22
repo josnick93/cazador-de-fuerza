@@ -79,10 +79,16 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: "IronQuest — Sistema de Fuerza" },
-      { name: "description", content: "Entrenamiento de fuerza con seguimiento de e1RM, nutrición y coach." },
+      {
+        name: "description",
+        content: "Entrenamiento de fuerza con seguimiento de e1RM, nutrición y coach.",
+      },
       { name: "author", content: "IronQuest" },
       { property: "og:title", content: "IronQuest — Sistema de Fuerza" },
-      { property: "og:description", content: "Entrenamiento de fuerza con seguimiento de e1RM, nutrición y coach." },
+      {
+        property: "og:description",
+        content: "Entrenamiento de fuerza con seguimiento de e1RM, nutrición y coach.",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
     ],

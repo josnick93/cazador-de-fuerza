@@ -1,20 +1,9 @@
 export type Goal = "fuerza" | "hipertrofia" | "powerlifting" | "recomposicion";
 export type Equipment = "gimnasio" | "mancuernas" | "casa";
 export type WeightUnit = "kg" | "lb";
-export type MuscleGroup =
-  | "Pecho"
-  | "Espalda"
-  | "Piernas"
-  | "Hombros"
-  | "Brazos"
-  | "Core";
+export type MuscleGroup = "Pecho" | "Espalda" | "Piernas" | "Hombros" | "Brazos" | "Core";
 
-export type LiftId =
-  | "banca"
-  | "sentadilla"
-  | "peso-muerto"
-  | "press-militar"
-  | "dominadas";
+export type LiftId = "banca" | "sentadilla" | "peso-muerto" | "press-militar" | "dominadas";
 
 export type MesocyclePhase = "Acumulación" | "Intensificación" | "Descarga";
 
@@ -40,14 +29,33 @@ export interface UserProfile {
   };
 }
 
+export type MovementPattern =
+  | "sentadilla"
+  | "bisagra"
+  | "empuje-horizontal"
+  | "empuje-vertical"
+  | "tiron-horizontal"
+  | "tiron-vertical"
+  | "pierna-accesorio"
+  | "hombro-accesorio"
+  | "biceps"
+  | "triceps";
+
+/** Base para estimar el e1RM de un ejercicio: un 1RM inicial o el peso corporal. */
+export type StrengthBase = "banca" | "sentadilla" | "pesoMuerto" | "pesoCorporal";
+
 export interface Exercise {
   id: string;
   liftId?: LiftId;
   name: string;
   muscle: MuscleGroup;
+  /** Equipamiento mínimo necesario. "gimnasio" ⊃ "mancuernas" ⊃ "casa". */
   equipment: Equipment;
+  pattern: MovementPattern;
+  compound: boolean;
+  /** e1RM estimado = base × ratio. Con pesoCorporal la carga incluye el cuerpo. */
+  strength: { base: StrengthBase; ratio: number };
   defaultRestSec: number;
-  bestE1rmKg: number;
 }
 
 export interface PlannedExercise {
@@ -56,6 +64,8 @@ export interface PlannedExercise {
   repRange: string;
   targetRir: number;
   targetKg: number;
+  /** Reps objetivo dentro del rango (doble progresión); si falta, el mínimo del rango. */
+  targetReps?: number;
   lastSessionText: string;
 }
 
@@ -141,6 +151,13 @@ export interface CoachMessage {
   timestamp: string;
 }
 
+export interface ProgressionNote {
+  exerciseName: string;
+  decision: "increase-load" | "decrease-load" | "add-rep" | "hold";
+  nextKg: number;
+  nextTargetReps: number;
+}
+
 export interface WorkoutSummary {
   workoutTitle: string;
   totalVolumeKg: number;
@@ -148,4 +165,65 @@ export interface WorkoutSummary {
   prsCount: number;
   prNames: string[];
   durationSeconds: number;
+  xpEarned: number;
+  leveledUp: boolean;
+  newLevel: number;
+  newRank: string;
+  progressions: ProgressionNote[];
+  mesocycleCompleted: boolean;
+}
+
+export type TemplateId = "full-body" | "torso-pierna" | "ppl" | "powerlifting";
+
+export interface PlannedSession {
+  id: string;
+  dayLabel: string;
+  title: string;
+  focus: string;
+  muscles: MuscleGroup[];
+  estimatedMinutes: number;
+  exercises: PlannedExercise[];
+}
+
+export interface GeneratedWeek {
+  weekNumber: number;
+  phase: MesocyclePhase;
+  intensityLabel: string;
+  targetRir: number;
+  sessions: PlannedSession[];
+}
+
+export interface Mesocycle {
+  id: string;
+  createdAt: string;
+  goal: Goal;
+  template: TemplateId;
+  templateName: string;
+  weeks: GeneratedWeek[];
+}
+
+export interface LoggedSet {
+  kg: number;
+  reps: number;
+  rir: number;
+  e1rm: number;
+  isPr: boolean;
+}
+
+export interface LoggedExercise {
+  exerciseId: string;
+  /** Ejercicio original del plan (difiere de exerciseId si se sustituyó). */
+  plannedExerciseId: string;
+  sets: LoggedSet[];
+}
+
+export interface WorkoutLog {
+  id: string;
+  sessionId: string;
+  mesocycleId: string;
+  title: string;
+  completedAt: string;
+  durationSeconds: number;
+  exercises: LoggedExercise[];
+  xpEarned: number;
 }
