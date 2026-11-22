@@ -84,7 +84,10 @@ export function OnboardingPage() {
           </div>
           <button
             type="button"
-            onClick={() => setView("hoy")}
+            onClick={() => {
+              updateProfile({ onboardingCompleted: true });
+              setView("hoy");
+            }}
             className="min-h-[48px] px-2 text-xs font-medium text-muted-foreground hover:text-foreground"
           >
             Saltar

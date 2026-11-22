@@ -11,7 +11,7 @@ const TABS: { id: MainTab; label: string; icon: typeof Dumbbell }[] = [
 
 export function MobileLayout({ children }: { children: ReactNode }) {
   const { profile, view, setView } = useApp();
-  const hideChrome = view === "entreno" || view === "onboarding";
+  const hideChrome = view === "entreno" || view === "onboarding" || !profile.onboardingCompleted;
 
   return (
     <div className="min-h-dvh w-full bg-background text-foreground">

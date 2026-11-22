@@ -24,13 +24,13 @@ Futuro: Supabase (auth + Postgres + Edge Functions), Capacitor (Android/iOS), St
 ## Estado actual (lo que dejó Lovable)
 - Hecho: types (`src/types`), mocks (`src/mocks`), `strengthService.ts`, `AppContext`, `MobileLayout`,
   `RestTimerBar`, páginas Onboarding, Hoy, EntrenoActivo, Progreso.
-- FALTA: `src/routes/index.tsx` sigue con el placeholder de Lovable (la app sale en blanco).
+- Hecho: `routes/index.tsx` monta `AppProvider` + `AppShell` (switch de vistas).
 - FALTA: páginas Plan, Coach, Perfil (tipos y mocks ya existen).
 
 ## Roadmap (hacer en orden, marcar [x] al terminar)
 
 ### Fase 1 — App navegable (diseño completo con mocks)
-- [ ] Sustituir placeholder de `routes/index.tsx` por `AppProvider` + `MobileLayout` + switch de vistas (`view` del contexto). Mostrar Onboarding si `!profile.onboardingCompleted`.
+- [x] Sustituir placeholder de `routes/index.tsx` por `AppProvider` + `MobileLayout` + switch de vistas (`view` del contexto). Mostrar Onboarding si `!profile.onboardingCompleted`.
 - [ ] `PlanPage`: timeline del mesociclo (Acumulación → Intensificación → Descarga), semana actual destacada, días con sesión y estado.
 - [ ] `CoachPage`: tarjeta "Revisión semanal" + chat con sugerencias rápidas ("¿Por qué no subo en banca?", "Ajusta mi semana", "Hoy tengo poco tiempo"). Respeta `coachPendingPrompt`.
 - [ ] `PerfilPage`: datos, objetivo, unidades kg/lb, toggle "Sincronizar con MacroQuest", tarjeta Premium, botón rehacer onboarding.
