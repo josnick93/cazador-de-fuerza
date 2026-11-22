@@ -72,8 +72,11 @@ Leer ese código antes de diseñar nada. Secretos con `wrangler secret`, nunca e
       + trigger de borrado sobre `users`. `ensureSchema` con `CREATE ... IF NOT EXISTS`. Tests con D1 local
       (`getPlatformProxy` de wrangler, `@vitest-environment node`). Config del Worker en `wrangler.jsonc` (nitro la
       mezcla en `.output/server/wrangler.json`); la D1 llega en `request.runtime.cloudflare.env`, no como parámetro.
-- [ ] Login con Google reutilizando los usuarios y sesiones de MacroQuest (misma cuenta en las dos apps).
-      Sin servidor (`bun run dev`) la app sigue funcionando solo en local.
+- [x] Login con Google (`src/worker/auth.ts`, adaptado de MacroQuest) con tablas `users`/`sessions` compartidas y
+      cookie `__Host-fq_session`. `/api/auth/delete-data` borra solo los datos de fuerza (la cuenta se borra en
+      MacroQuest). App: `services/authService.ts` + sección «Cuenta» en Perfil. Sin servidor (`bun run dev`)
+      `/api/auth/me` falla y la app sigue en local. Desplegar: `bun run deploy` y los secrets
+      `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` (los mismos de MacroQuest) con `wrangler secret put`.
 - [ ] Sync datos locales ↔ D1 (gana el `updatedAt` más reciente), mismo patrón que MacroQuest.
 - [ ] Progreso semanal: e1RM semanal + kcal/proteína media del diario de MacroQuest (sustituye el mock de nutrición).
 

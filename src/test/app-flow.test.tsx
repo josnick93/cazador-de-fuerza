@@ -19,6 +19,23 @@ function nav() {
   return within(screen.getByRole("navigation", { name: "Navegación principal" }));
 }
 
+/** Servidor de login simulado: /api/auth/me devuelve `user` hasta que se cierra sesión. */
+function stubAuthServer(user: { id: string; email: string; name: string | null } | null) {
+  let current = user;
+  const calls: string[] = [];
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (url: string, init?: RequestInit) => {
+      calls.push(`${init?.method ?? "GET"} ${url}`);
+      if (url === "/api/auth/logout") current = null;
+      return new Response(JSON.stringify({ enabled: true, user: current }), {
+        headers: { "content-type": "application/json" },
+      });
+    }),
+  );
+  return calls;
+}
+
 describe("Flujo de la app", () => {
   beforeEach(() => {
     window.localStorage.clear();
@@ -27,6 +44,7 @@ describe("Flujo de la app", () => {
   afterEach(() => {
     cleanup();
     vi.useRealTimers();
+    vi.unstubAllGlobals();
   });
 
   it("un usuario nuevo empieza en el onboarding y al terminarlo recibe su plan", () => {
@@ -192,6 +210,43 @@ describe("Flujo de la app", () => {
       vi.advanceTimersByTime(1000);
     });
     expect(log.getByText(/Tu Press Banca lleva 3 semanas/)).toBeInTheDocument();
+  });
+
+  it("Perfil ofrece entrar con Google si el servidor tiene login", async () => {
+    stubAuthServer(null);
+    seedProfile();
+    renderApp();
+    fireEvent.click(screen.getByRole("button", { name: "Abrir perfil" }));
+    const link = await screen.findByRole("link", { name: /Entrar con Google/ });
+    expect(link).toHaveAttribute("href", "/api/auth/login");
+  });
+
+  it("con sesión muestra el correo y permite cerrarla", async () => {
+    const calls = stubAuthServer({ id: "g1", email: "ana@example.com", name: "Ana" });
+    seedProfile();
+    renderApp();
+    fireEvent.click(screen.getByRole("button", { name: "Abrir perfil" }));
+    expect(await screen.findByText("ana@example.com")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Cerrar sesión/ }));
+    expect(await screen.findByRole("link", { name: /Entrar con Google/ })).toBeInTheDocument();
+    expect(calls).toContain("POST /api/auth/logout");
+  });
+
+  it("sin servidor de login la app sigue en local", () => {
+    seedProfile();
+    renderApp();
+    fireEvent.click(screen.getByRole("button", { name: "Abrir perfil" }));
+    expect(screen.getByText(/Tus datos se guardan en este dispositivo/)).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Entrar con Google/ })).not.toBeInTheDocument();
+  });
+
+  it("al volver del login abre Perfil con el resultado y limpia la URL", async () => {
+    stubAuthServer({ id: "g1", email: "ana@example.com", name: "Ana" });
+    window.history.pushState(null, "", "/?login=ok");
+    seedProfile();
+    renderApp();
+    expect(await screen.findByText(/Sesión iniciada/)).toBeInTheDocument();
+    expect(window.location.search).toBe("");
   });
 
   it("Perfil cambia unidades y permite rehacer el onboarding", () => {
