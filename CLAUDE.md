@@ -60,9 +60,16 @@ Futuro: Cloudflare Workers + D1 + login con Google (lo mismo que MacroQuest, `..
 MacroQuest NO usa Supabase: es un Cloudflare Worker (`../macro-quest-app/worker`) con D1 (`macro-quest`),
 login con Google (`worker/auth.ts`, usuarios y sesiones en D1) y sync (`worker/sync.ts`, tabla `records`).
 Leer ese código antes de diseñar nada. Secretos con `wrangler secret`, nunca en git.
-- [ ] Decidir con el usuario el despliegue: Worker propio en un subdominio de macroquestapp.com enlazado a la misma D1
-      y sesión compartida (cookie de dominio), o endpoints nuevos dentro del Worker de MacroQuest.
-- [ ] Migraciones D1: mesocycles, workouts y sets por usuario, sin tocar las tablas de MacroQuest.
+- [x] Despliegue decidido (2026-11-22): Worker propio de esta app en **fuerza.macroquestapp.com**, enlazado a la
+      misma D1 `macro-quest`. Nitro ya compila para Cloudflare; `src/server.ts` intercepta `/api/*` (como el Worker
+      de MacroQuest) y el resto lo sirve TanStack Start.
+      - Comparte las tablas `users` y `sessions` (misma cuenta = mismo id de Google). La cookie de MacroQuest es
+        `__Host-` (no se comparte entre subdominios): cookie propia `__Host-fq_session`, se entra una vez en cada app.
+      - Mismo cliente OAuth de Google: añadir la URL de retorno `https://fuerza.macroquestapp.com/api/auth/callback`.
+      - Datos propios en tablas `fuerza_*`; nunca escribir en `records` de MacroQuest (solo leer la nutrición).
+      - Borrar la cuenta debe borrar también los datos `fuerza_*` (trigger en D1 sobre `users`).
+- [ ] Esquema D1: tablas `fuerza_*` (registros por usuario) + trigger de borrado, sin tocar las tablas de MacroQuest.
+      Mismo patrón que MacroQuest (`ensureSchema` con `CREATE ... IF NOT EXISTS`). Tests con D1 local (wrangler).
 - [ ] Login con Google reutilizando los usuarios y sesiones de MacroQuest (misma cuenta en las dos apps).
       Sin servidor (`bun run dev`) la app sigue funcionando solo en local.
 - [ ] Sync datos locales ↔ D1 (gana el `updatedAt` más reciente), mismo patrón que MacroQuest.
