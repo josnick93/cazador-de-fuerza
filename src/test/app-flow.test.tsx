@@ -5,7 +5,7 @@ import { AppProvider } from "@/components/AppContext";
 import { AppShell } from "@/components/AppShell";
 import { STORAGE_KEYS } from "@/services/storage";
 import { getWorkoutLogs } from "@/services/strengthService";
-import { seedLogs, seedProfile, weeklyBenchLogs } from "./fixtures";
+import { seedLogs, seedMacroQuest, seedProfile, weeklyBenchLogs } from "./fixtures";
 
 function renderApp() {
   return render(
@@ -28,6 +28,9 @@ function stubAuthServer(user: { id: string; email: string; name: string | null }
     vi.fn(async (url: string, init?: RequestInit) => {
       calls.push(`${init?.method ?? "GET"} ${url}`);
       if (url === "/api/auth/logout") current = null;
+      if (url === "/api/nutrition") {
+        return Response.json({ connected: false, goal: null, days: [], weights: [] });
+      }
       if (url === "/api/sync") {
         return Response.json({ epoch: "e1", cursor: 0, changes: [], more: false });
       }
@@ -213,6 +216,24 @@ describe("Flujo de la app", () => {
       vi.advanceTimersByTime(1000);
     });
     expect(log.getByText(/Tu Press Banca lleva 3 semanas/)).toBeInTheDocument();
+  });
+
+  it("Progreso muestra el veredicto con los datos de MacroQuest", () => {
+    seedProfile({ macroQuestSync: true });
+    seedLogs(weeklyBenchLogs([95, 97, 100, 103]));
+    seedMacroQuest({}, { protein: 90 });
+    renderApp();
+    fireEvent.click(nav().getByRole("button", { name: "Progreso" }));
+    const card = within(screen.getByRole("region", { name: "Algo está frenando tu progreso" }));
+    expect(card.getByText(/Qué cambiar:/)).toBeInTheDocument();
+    expect(card.getByText(/Sube la proteína/)).toBeInTheDocument();
+  });
+
+  it("Progreso sin MacroQuest invita a conectarlo", () => {
+    seedProfile({ macroQuestSync: true });
+    renderApp();
+    fireEvent.click(nav().getByRole("button", { name: "Progreso" }));
+    expect(screen.getByText(/Entra con tu cuenta de MacroQuest/)).toBeInTheDocument();
   });
 
   it("Perfil ofrece entrar con Google si el servidor tiene login", async () => {

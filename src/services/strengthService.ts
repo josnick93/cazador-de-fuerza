@@ -11,7 +11,14 @@ import {
 } from "@/engine/progression";
 import { addXp, sessionXp } from "@/engine/xp";
 import { findAlternatives, substitutePlannedExercise } from "@/engine/substitution";
-import { MOCK_WEEKLY_NUTRITION } from "@/mocks/nutrition";
+import {
+  computeVerdict,
+  fallbackMacroGoal,
+  nutritionWeeks,
+  strengthTrend,
+  type Verdict,
+} from "@/engine/verdict";
+import { getCachedNutrition } from "@/services/nutritionService";
 import { MOCK_INITIAL_COACH_MESSAGES, MOCK_WEEKLY_REVIEW } from "@/mocks/workouts";
 import { uniqueId } from "@/lib/id";
 import { STORAGE_KEYS, readJson, removeKey, writeJson } from "@/services/storage";
@@ -414,8 +421,41 @@ export function getE1rmHistory(liftId: LiftId): WeeklyE1rmPoint[] {
   return exerciseId ? weeklyBestE1rm(getWorkoutLogs(), [exerciseId]) : [];
 }
 
-export function getWeeklyNutrition(): WeeklyNutritionPoint[] {
-  return MOCK_WEEKLY_NUTRITION;
+/** Datos de MacroQuest si el usuario tiene activada la sincronización y los hay. */
+function macroQuestSnapshot() {
+  if (!getUserProfile().macroQuestSync) return null;
+  const cached = getCachedNutrition();
+  return cached?.snapshot.connected ? cached.snapshot : null;
+}
+
+/** Nutrición semanal de MacroQuest (8 semanas, solo las que tienen registros). Vacío sin MacroQuest. */
+export function getWeeklyNutrition(today = new Date()): WeeklyNutritionPoint[] {
+  const snapshot = macroQuestSnapshot();
+  if (!snapshot) return [];
+  return nutritionWeeks(snapshot, today)
+    .filter((w) => w.kcal !== null)
+    .map((w, i) => ({
+      week: w.label,
+      weekIndex: i + 1,
+      proteinG: w.protein ?? 0,
+      kcal: w.kcal ?? 0,
+    }));
+}
+
+/** Veredicto semanal cruzando fuerza y MacroQuest; null sin datos de MacroQuest. */
+export function getWeeklyVerdict(today = new Date()): Verdict | null {
+  const snapshot = macroQuestSnapshot();
+  if (!snapshot) return null;
+  const profile = getUserProfile();
+  const liftIds = MAIN_LIFTS.map((l) => liftExerciseId(l.id)).filter((id) => id !== undefined);
+  return computeVerdict({
+    goal: snapshot.goal ?? fallbackMacroGoal(profile.goal),
+    trainingGoal: profile.goal,
+    nutrition: snapshot,
+    strength: strengthTrend(getWorkoutLogs(), liftIds, today),
+    bodyweightKg: profile.bodyweightKg,
+    today,
+  });
 }
 
 /** Un PR por ejercicio y sesión (su mejor serie marcada como PR), los más recientes primero. */
@@ -454,6 +494,9 @@ const avg = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.le
 /** Causa probable cruzando con nutrición (MacroQuest): caída de proteína/kcal o fatiga. */
 function explainPlateau(weeksStalled: number): string {
   const nutrition = getWeeklyNutrition();
+  if (nutrition.length <= weeksStalled) {
+    return "Conecta MacroQuest para saber si la causa es tu nutrición. Si comes bien, probablemente acumulas fatiga: valora una descarga.";
+  }
   const recent = nutrition.slice(-weeksStalled);
   const before = nutrition.slice(0, -weeksStalled);
   const proteinBefore = Math.round(avg(before.map((n) => n.proteinG)));

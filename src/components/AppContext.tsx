@@ -14,6 +14,7 @@ import {
   type LoginResult,
 } from "@/services/authService";
 import { getDefaultProfile, getUserProfile, saveUserProfile } from "@/services/strengthService";
+import { fetchNutrition, getCachedNutrition } from "@/services/nutritionService";
 import {
   adoptAccount,
   getLastSyncAt,
@@ -86,8 +87,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setSync((s) => ({ ...s, state: "syncing" }));
     const result = await syncNow(userId);
     setSync({ state: result.state, lastSyncAt: result.lastSyncAt });
-    if (result.changed) reloadLocalData();
-    if (result.state === "signed-out") setAccount(await getAccount());
+    if (result.state === "signed-out") {
+      setAccount(await getAccount());
+      return;
+    }
+    // Datos de MacroQuest para el veredicto: solo se recarga la vista si han cambiado.
+    const before = JSON.stringify(getCachedNutrition()?.snapshot ?? null);
+    const nutrition = await fetchNutrition();
+    const after = nutrition ? JSON.stringify(nutrition.snapshot) : before;
+    // Sin datos de MacroQuest (antes ni ahora) no hay nada nuevo que mostrar.
+    const nutritionChanged =
+      after !== before &&
+      (nutrition?.snapshot.connected === true || before.includes('"connected":true'));
+    if (result.changed || nutritionChanged) reloadLocalData();
   }, [userId]);
 
   useEffect(() => {

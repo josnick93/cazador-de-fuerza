@@ -2,9 +2,11 @@
  * API del Worker (/api/*). `src/server.ts` la llama antes que TanStack Start; el resto de rutas son la app.
  * - /api/auth/*: login con Google (ver auth.ts).
  * - /api/sync: sincronización de los datos del usuario (ver sync.ts).
+ * - /api/nutrition: lectura de los datos de MacroQuest de la cuenta (ver nutrition.ts).
  */
 import { handleAuth, type AuthEnv } from "./auth";
 import { json } from "./http";
+import { handleNutrition } from "./nutrition";
 import { handleSync } from "./sync";
 
 export type ApiEnv = AuthEnv;
@@ -31,6 +33,14 @@ export async function handleApi(request: Request, env: ApiEnv): Promise<Response
     } catch (e) {
       console.error("sync", e);
       return json({ error: "Error al sincronizar" }, 500);
+    }
+  }
+  if (pathname === "/api/nutrition") {
+    try {
+      return await handleNutrition(request, env);
+    } catch (e) {
+      console.error("nutrition", e);
+      return json({ error: "Error al leer MacroQuest" }, 500);
     }
   }
   return json({ error: "No existe" }, 404);

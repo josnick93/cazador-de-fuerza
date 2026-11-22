@@ -30,7 +30,7 @@ Futuro: Cloudflare Workers + D1 + login con Google (lo mismo que MacroQuest, `..
 - Hecho: `routes/index.tsx` monta `AppProvider` + `AppShell` (switch de vistas).
 - Hecho: páginas Plan, Coach, Perfil.
 - Hecho (Fase 2): motor en `src/engine/*` (progresión, estancamiento, generador, sustitución, XP), catálogo en `src/data/exercises.ts`,
-  persistencia en localStorage vía `src/services/storage.ts`. Solo nutrición y coach siguen con mocks (Fases 3-4).
+  persistencia en localStorage vía `src/services/storage.ts`. Solo el coach sigue con mocks (Fase 4).
 - Hecho: Biblioteca (pestaña propia + ficha `ExerciseGuideSheet` en el entreno con "Técnica" y "Máquina ocupada").
   Fichas en español en `src/data/exerciseGuides.ts`; fotos de free-exercise-db (dominio público) en
   `public/exercises/<id>/{0,1}.webp` (560 px, WebP q60). Ejercicio nuevo ⇒ ficha + fotos (lo exige un test).
@@ -83,7 +83,12 @@ Leer ese código antes de diseñar nada. Secretos con `wrangler secret`, nunca e
       Al vincular cuenta la nube manda; mesociclo autogenerado con fecha EPOCH (pierde contra la nube); otra cuenta
       en el mismo dispositivo ⇒ `conflict` (no se mezcla). Pendiente: el perfil (XP/nivel) es «gana el último»;
       si se entrena en dos móviles a la vez sin sincronizar se puede perder XP.
-- [ ] Progreso semanal: e1RM semanal + kcal/proteína media del diario de MacroQuest (sustituye el mock de nutrición).
+- [x] Veredicto semanal «¿Vas por buen camino?» en Progreso (`engine/verdict.ts`, reglas deterministas): tendencia de
+      fuerza de los básicos (14 días vs 14 anteriores) + peso (regresión 28 días) + proteína g/kg + días registrados,
+      según el objetivo de MacroQuest (perder/mantener/ganar). Datos de `/api/nutrition` (`worker/nutrition.ts`, solo
+      LEE `records` de MacroQuest: diario, pesajes y perfil) cacheados en local (`services/nutritionService.ts`).
+      Sustituye el mock de nutrición (borrado). Solo con «Sincronizar con MacroQuest» activado.
+- [ ] Tarjeta «Fuerza esta semana» en MacroQuest (repo `../macro-quest-app`): leer `fuerza_records` desde su Worker.
 
 ### Fase 4 — Coach IA (API de Anthropic)
 - [ ] Endpoint `/api/coach` en el Worker: recibe 8 semanas de e1RM/nutrición/sueño, devuelve JSON {causa, cambios[3]}. Modelo `claude-haiku-5-5`. Clave en secret `ANTHROPIC_API_KEY`.

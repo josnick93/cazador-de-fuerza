@@ -1,3 +1,4 @@
+import type { NutritionSnapshot } from "@/lib/nutritionApi";
 import { DEFAULT_PROFILE } from "@/data/defaultProfile";
 import { STORAGE_KEYS } from "@/services/storage";
 import type { UserProfile, WorkoutLog } from "@/types";
@@ -42,4 +43,33 @@ export function weeklyBenchLogs(e1rms: number[], now = new Date()): WorkoutLog[]
       ],
     };
   });
+}
+
+/** Datos de MacroQuest en la caché local: 14 días de diario y pesajes de 4 semanas (volumen a 0,25 kg/sem). */
+export function seedMacroQuest(
+  patch: Partial<NutritionSnapshot> = {},
+  { protein = 150, now = new Date() }: { protein?: number; now?: Date } = {},
+): void {
+  const day = (n: number) => {
+    const d = new Date(now);
+    d.setDate(d.getDate() - n);
+    return d.toISOString().slice(0, 10);
+  };
+  const snapshot: NutritionSnapshot = {
+    connected: true,
+    goal: "ganar",
+    rateKgWeek: 0.25,
+    proteinPerKg: 1.8,
+    weightKg: 80,
+    days: Array.from({ length: 14 }, (_, i) => ({ date: day(13 - i), kcal: 2900, protein })),
+    weights: Array.from({ length: 10 }, (_, i) => ({
+      date: day(27 - i * 3),
+      kg: Math.round((80 + (0.25 * i * 3) / 7) * 100) / 100,
+    })),
+    ...patch,
+  };
+  window.localStorage.setItem(
+    STORAGE_KEYS.nutrition,
+    JSON.stringify({ snapshot, fetchedAt: now.toISOString() }),
+  );
 }
