@@ -25,7 +25,7 @@ Futuro: Supabase (auth + Postgres + Edge Functions), Capacitor (Android/iOS), St
 - Hecho: types (`src/types`), mocks (`src/mocks`), `strengthService.ts`, `AppContext`, `MobileLayout`,
   `RestTimerBar`, páginas Onboarding, Hoy, EntrenoActivo, Progreso.
 - Hecho: `routes/index.tsx` monta `AppProvider` + `AppShell` (switch de vistas).
-- FALTA: páginas Plan, Coach, Perfil (tipos y mocks ya existen).
+- Hecho: páginas Plan, Coach, Perfil.
 
 ## Roadmap (hacer en orden, marcar [x] al terminar)
 
@@ -33,7 +33,7 @@ Futuro: Supabase (auth + Postgres + Edge Functions), Capacitor (Android/iOS), St
 - [x] Sustituir placeholder de `routes/index.tsx` por `AppProvider` + `MobileLayout` + switch de vistas (`view` del contexto). Mostrar Onboarding si `!profile.onboardingCompleted`.
 - [x] `PlanPage`: timeline del mesociclo (Acumulación → Intensificación → Descarga), semana actual destacada, días con sesión y estado.
 - [x] `CoachPage`: tarjeta "Revisión semanal" + chat con sugerencias rápidas ("¿Por qué no subo en banca?", "Ajusta mi semana", "Hoy tengo poco tiempo"). Respeta `coachPendingPrompt`.
-- [ ] `PerfilPage`: datos, objetivo, unidades kg/lb, toggle "Sincronizar con MacroQuest", tarjeta Premium, botón rehacer onboarding.
+- [x] `PerfilPage`: datos, objetivo, unidades kg/lb, toggle "Sincronizar con MacroQuest", tarjeta Premium, botón rehacer onboarding.
 - [ ] Revisar flujo completo Hoy → Entreno activo → Resumen → Progreso. Test de routing actualizado.
 
 ### Fase 2 — Entrenos personalizados (motor local)

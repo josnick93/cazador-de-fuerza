@@ -5,17 +5,9 @@ import { CoachPage } from "@/pages/CoachPage";
 import { EntrenoActivoPage } from "@/pages/EntrenoActivoPage";
 import { HoyPage } from "@/pages/HoyPage";
 import { OnboardingPage } from "@/pages/OnboardingPage";
+import { PerfilPage } from "@/pages/PerfilPage";
 import { PlanPage } from "@/pages/PlanPage";
 import { ProgresoPage } from "@/pages/ProgresoPage";
-
-function PendingPage({ title }: { title: string }) {
-  return (
-    <div className="px-4 py-8 text-center">
-      <h1 className="font-display text-2xl font-bold text-foreground">{title}</h1>
-      <p className="mt-2 text-sm text-muted-foreground">Próximamente.</p>
-    </div>
-  );
-}
 
 function renderView(view: AppView) {
   switch (view) {
@@ -30,7 +22,7 @@ function renderView(view: AppView) {
     case "coach":
       return <CoachPage />;
     case "perfil":
-      return <PendingPage title="Perfil" />;
+      return <PerfilPage />;
     case "hoy":
     default:
       return <HoyPage />;
