@@ -1,5 +1,7 @@
+import { useLayoutEffect } from "react";
 import { useApp, type AppView } from "@/components/AppContext";
 import { MobileLayout } from "@/components/MobileLayout";
+import { CoachPage } from "@/pages/CoachPage";
 import { EntrenoActivoPage } from "@/pages/EntrenoActivoPage";
 import { HoyPage } from "@/pages/HoyPage";
 import { OnboardingPage } from "@/pages/OnboardingPage";
@@ -26,7 +28,7 @@ function renderView(view: AppView) {
     case "plan":
       return <PlanPage />;
     case "coach":
-      return <PendingPage title="Coach" />;
+      return <CoachPage />;
     case "perfil":
       return <PendingPage title="Perfil" />;
     case "hoy":
@@ -38,6 +40,11 @@ function renderView(view: AppView) {
 export function AppShell() {
   const { profile, view } = useApp();
   const activeView: AppView = profile.onboardingCompleted ? view : "onboarding";
+
+  // Layout effect: corre antes que los efectos de la página (p. ej. autoscroll del chat).
+  useLayoutEffect(() => {
+    window.scrollTo(0, 0);
+  }, [activeView]);
 
   return <MobileLayout>{renderView(activeView)}</MobileLayout>;
 }
