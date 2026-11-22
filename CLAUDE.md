@@ -9,7 +9,10 @@ Estética gamificada (rangos de cazador, XP, "misiones"), coherente con MacroQue
 ## Reglas de trabajo
 - Trabajar SIEMPRE en la rama `claude-code`. NO tocar `main` (se sincroniza con Lovable).
 - Lovable ya no se usa: este repo se desarrolla aquí. Ignorar las restricciones de AGENTS.md
-  sobre gateway de IA de Lovable: usaremos Supabase propio + API de Anthropic.
+  sobre gateway de IA de Lovable: usaremos el backend de MacroQuest (Cloudflare) + API de Anthropic.
+- Git: este repo usa la cuenta personal `josnick93` (remote `git@github-macroquest:...` y
+  `user.email` personal en la config LOCAL). No tocar la config global de git (el Mac es del trabajo).
+- Responder siempre en castellano.
 - Mobile-first (390px), botones ≥48px, usable con una mano en el gimnasio.
 - Datos solo vía `src/services/*` (las pantallas nunca importan mocks directamente).
 - Lógica de progresión DETERMINISTA en código (sin IA). La IA solo para generar planes,
@@ -19,7 +22,7 @@ Estética gamificada (rangos de cazador, XP, "misiones"), coherente con MacroQue
 
 ## Stack
 TanStack Start + React 19 + Vite + Tailwind v4 + shadcn/ui + Recharts. Gestor: bun.
-Futuro: Supabase (auth + Postgres + Edge Functions), Capacitor (Android/iOS), Stripe/AdSense (PWA), AdMob/RevenueCat (stores).
+Futuro: Cloudflare Workers + D1 + login con Google (lo mismo que MacroQuest, `../macro-quest-app`), Capacitor (Android/iOS), Stripe/AdSense (PWA), AdMob/RevenueCat (stores).
 
 ## Estado actual (lo que dejó Lovable)
 - Hecho: types (`src/types`), mocks (`src/mocks`), `strengthService.ts`, `AppContext`, `MobileLayout`,
@@ -48,15 +51,21 @@ Futuro: Supabase (auth + Postgres + Edge Functions), Capacitor (Android/iOS), St
 - [x] Sustitución de ejercicio por otro del mismo músculo con recálculo de pesos.
 - [x] Al terminar sesión: aplicar progresión, guardar PRs, sumar XP.
 
-### Fase 3 — Backend Supabase (compartido con MacroQuest)
-- [ ] Preguntar al usuario por el proyecto Supabase de MacroQuest (URL + anon key en `.env`, nunca en git).
-- [ ] Migraciones en `supabase/migrations`: profiles, exercises, workouts, sets (e1rm generado), RLS por usuario. Reusar tabla de comidas de MacroQuest.
-- [ ] Vista `weekly_progress` (e1RM semanal + kcal/proteína media + sueño).
-- [ ] Auth (email + Google) y sync de datos locales a Supabase.
+### Fase 3 — Backend Cloudflare (compartido con MacroQuest)
+MacroQuest NO usa Supabase: es un Cloudflare Worker (`../macro-quest-app/worker`) con D1 (`macro-quest`),
+login con Google (`worker/auth.ts`, usuarios y sesiones en D1) y sync (`worker/sync.ts`, tabla `records`).
+Leer ese código antes de diseñar nada. Secretos con `wrangler secret`, nunca en git.
+- [ ] Decidir con el usuario el despliegue: Worker propio en un subdominio de macroquestapp.com enlazado a la misma D1
+      y sesión compartida (cookie de dominio), o endpoints nuevos dentro del Worker de MacroQuest.
+- [ ] Migraciones D1: mesocycles, workouts y sets por usuario, sin tocar las tablas de MacroQuest.
+- [ ] Login con Google reutilizando los usuarios y sesiones de MacroQuest (misma cuenta en las dos apps).
+      Sin servidor (`bun run dev`) la app sigue funcionando solo en local.
+- [ ] Sync datos locales ↔ D1 (gana el `updatedAt` más reciente), mismo patrón que MacroQuest.
+- [ ] Progreso semanal: e1RM semanal + kcal/proteína media del diario de MacroQuest (sustituye el mock de nutrición).
 
 ### Fase 4 — Coach IA (API de Anthropic)
-- [ ] Edge Function `coach`: recibe 8 semanas de e1RM/nutrición/sueño, devuelve JSON {causa, cambios[3]}. Modelo `claude-haiku-5-5`. Clave en secret `ANTHROPIC_API_KEY`.
-- [ ] Edge Function `generate-plan`: ajusta/crea el mesociclo con IA a partir del motor local (la IA propone, el motor valida pesos).
+- [ ] Endpoint `/api/coach` en el Worker: recibe 8 semanas de e1RM/nutrición/sueño, devuelve JSON {causa, cambios[3]}. Modelo `claude-haiku-5-5`. Clave en secret `ANTHROPIC_API_KEY`.
+- [ ] Endpoint `/api/generate-plan`: ajusta/crea el mesociclo con IA a partir del motor local (la IA propone, el motor valida pesos).
 - [ ] Límite gratis: 3 consultas/semana. Premium ilimitado.
 
 ### Fase 5 — Distribución y monetización
