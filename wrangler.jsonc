@@ -1,0 +1,9 @@
+// Se mezcla con el wrangler.json que genera nitro en .output/server al hacer `bun run build`.
+{
+  "name": "cazador-de-fuerza",
+  "observability": { "enabled": true },
+  "routes": [{ "pattern": "fuerza.macroquestapp.com", "custom_domain": true }],
+  "workers_dev": true,
+  // La misma base de datos que MacroQuest: usuarios y sesiones compartidos, datos propios en tablas fuerza_*.
+  "d1_databases": [{ "binding": "DB", "database_name": "macro-quest" }]
+}

@@ -68,8 +68,10 @@ Leer ese código antes de diseñar nada. Secretos con `wrangler secret`, nunca e
       - Mismo cliente OAuth de Google: añadir la URL de retorno `https://fuerza.macroquestapp.com/api/auth/callback`.
       - Datos propios en tablas `fuerza_*`; nunca escribir en `records` de MacroQuest (solo leer la nutrición).
       - Borrar la cuenta debe borrar también los datos `fuerza_*` (trigger en D1 sobre `users`).
-- [ ] Esquema D1: tablas `fuerza_*` (registros por usuario) + trigger de borrado, sin tocar las tablas de MacroQuest.
-      Mismo patrón que MacroQuest (`ensureSchema` con `CREATE ... IF NOT EXISTS`). Tests con D1 local (wrangler).
+- [x] Esquema D1 en `src/worker/store.ts`: `fuerza_records` (almacén/clave por usuario, como `records` de MacroQuest)
+      + trigger de borrado sobre `users`. `ensureSchema` con `CREATE ... IF NOT EXISTS`. Tests con D1 local
+      (`getPlatformProxy` de wrangler, `@vitest-environment node`). Config del Worker en `wrangler.jsonc` (nitro la
+      mezcla en `.output/server/wrangler.json`); la D1 llega en `request.runtime.cloudflare.env`, no como parámetro.
 - [ ] Login con Google reutilizando los usuarios y sesiones de MacroQuest (misma cuenta en las dos apps).
       Sin servidor (`bun run dev`) la app sigue funcionando solo en local.
 - [ ] Sync datos locales ↔ D1 (gana el `updatedAt` más reciente), mismo patrón que MacroQuest.
