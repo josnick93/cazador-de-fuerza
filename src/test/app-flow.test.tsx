@@ -179,6 +179,32 @@ describe("Flujo de la app", () => {
     expect(screen.getByRole("button", { name: /Flexiones Pike/ })).toBeInTheDocument();
   });
 
+  it("pulsar un ejercicio en Hoy abre el entreno en ese ejercicio", () => {
+    seedProfile();
+    renderApp();
+    const items = screen.getAllByRole("button", { name: /^0\d/ });
+    fireEvent.click(items[2]!);
+    expect(screen.getByText(/Ejercicio 3 de/)).toBeInTheDocument();
+  });
+
+  it("salir del entreno no pierde las series ni el descanso, y se puede continuar", () => {
+    seedProfile();
+    renderApp();
+    fireEvent.click(screen.getByRole("button", { name: /Empezar entreno/ }));
+    fireEvent.click(screen.getAllByRole("button", { name: "Hecho" })[0]!);
+    expect(screen.getByText(/Descanso|descanso/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Salir del entreno" }));
+
+    expect(screen.getByText("1/3 series hechas")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Continuar entreno/ }));
+    expect(screen.getByRole("button", { name: /Serie completada/ })).toBeInTheDocument();
+    expect(screen.getByText(/Descanso|descanso/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Terminar" }));
+    fireEvent.click(screen.getByRole("button", { name: "Volver a Hoy" }));
+    expect(screen.queryByRole("button", { name: /Continuar entreno/ })).not.toBeInTheDocument();
+  });
+
   it("no marca la sesión como hecha si se termina sin series", () => {
     seedProfile();
     renderApp();
