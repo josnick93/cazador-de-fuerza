@@ -32,7 +32,31 @@ function stubAuthServer(
       calls.push(`${init?.method ?? "GET"} ${url}`);
       if (url === "/api/auth/logout") current = null;
       if (url === "/api/coach") {
-        const body = JSON.parse(String(init?.body)) as { kind: string; message?: string };
+        const body = JSON.parse(String(init?.body)) as {
+          kind: string;
+          message?: string;
+          sesiones?: { titulo: string; ejercicios: { id: string }[] }[];
+        };
+        if (body.kind === "plan") {
+          const first = body.sesiones![0]!;
+          return Response.json({
+            proposal: {
+              resumen: "Más series en el primer ejercicio.",
+              cambios: [
+                {
+                  tipo: "series",
+                  sesion: first.titulo,
+                  alcance: "siempre",
+                  ejercicio: first.ejercicios[0]!.id,
+                  nuevoEjercicio: null,
+                  series: 5,
+                  motivo: "Volumen",
+                },
+              ],
+            },
+            remaining: 2,
+          });
+        }
         return body.kind === "review"
           ? Response.json({
               review: {
@@ -268,6 +292,23 @@ describe("Flujo de la app", () => {
     expect(await screen.findByRole("heading", { name: "Semana sólida" })).toBeInTheDocument();
     expect(screen.getByText("Tres")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Nueva revisión con IA/ })).toBeInTheDocument();
+  });
+
+  it("Plan: la IA propone cambios, el motor los valida y se aplican al plan", async () => {
+    stubAuthServer({ id: "g1", email: "ana@example.com", name: "Ana" });
+    seedProfile();
+    renderApp();
+    fireEvent.click(nav().getByRole("button", { name: "Plan" }));
+    fireEvent.click(await screen.findByRole("button", { name: /Hoy tengo 40 minutos/ }));
+    expect(await screen.findByText("Más series en el primer ejercicio.")).toBeInTheDocument();
+    expect(screen.getByText(/a 5 series/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Aplicar" }));
+    expect(screen.getByText("Plan actualizado: 1 cambio.")).toBeInTheDocument();
+    const saved = JSON.parse(window.localStorage.getItem(STORAGE_KEYS.mesocycle)!) as {
+      weeks: { sessions: { exercises: { sets: number }[] }[] }[];
+    };
+    expect(saved.weeks[0]!.sessions[0]!.exercises[0]!.sets).toBe(5);
   });
 
   it("sin sesión el coach invita a entrar", () => {

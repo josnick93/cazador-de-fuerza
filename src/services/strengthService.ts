@@ -19,6 +19,9 @@ import {
   type Verdict,
 } from "@/engine/verdict";
 import { getCachedNutrition } from "@/services/nutritionService";
+import { clearWorkoutDraft } from "@/services/workoutDraftService";
+import { applyPlanChanges, type PlanAdjustResult } from "@/engine/planAdjust";
+import type { PlanProposal, PlanSessionSummary } from "@/lib/planApi";
 import { uniqueId } from "@/lib/id";
 import { STORAGE_KEYS, readJson, removeKey, writeJson } from "@/services/storage";
 import { EPOCH, markDirty, resetSyncMeta } from "@/services/syncService";
@@ -523,6 +526,61 @@ export function getStagnationAlert(liftId: LiftId): StagnationAlert | null {
     summary: `${liftName} estancada ${plateau.weeksStalled} semanas`,
     cause: explainPlateau(plateau.weeksStalled),
   };
+}
+
+// ── Ajuste del plan con IA ───────────────────────────────────────────────────
+
+/** Próxima sesión pendiente de cada título (lo que ve la IA para proponer cambios). */
+export function getPlanSessionsForCoach(): {
+  sesiones: PlanSessionSummary[];
+  proximaSesion: string | null;
+} {
+  const mesocycle = getActiveMesocycle();
+  const done = completedSessionIds(mesocycle);
+  const seen = new Map<string, PlanSessionSummary>();
+  for (const session of mesocycle.weeks.flatMap((w) => w.sessions)) {
+    if (done.has(session.id) || seen.has(session.title) || seen.size >= 7) continue;
+    seen.set(session.title, {
+      titulo: session.title,
+      ejercicios: session.exercises.map((p) => ({
+        id: p.exerciseId,
+        nombre: getExerciseById(p.exerciseId)?.name ?? p.exerciseId,
+        series: p.sets,
+        reps: p.repRange,
+      })),
+    });
+  }
+  return {
+    sesiones: [...seen.values()],
+    proximaSesion: getNextSession(mesocycle)?.session.title ?? null,
+  };
+}
+
+function planAdjust(proposal: PlanProposal): PlanAdjustResult {
+  const mesocycle = getActiveMesocycle();
+  return applyPlanChanges(mesocycle, proposal.cambios, {
+    catalog: EXERCISE_CATALOG,
+    input: getUserProfile(),
+    knownE1rm: getKnownE1rms(),
+    doneSessionIds: completedSessionIds(mesocycle),
+    nextSessionId: getNextSession(mesocycle)?.session.id ?? null,
+  });
+}
+
+/** Qué haría la propuesta, validada por el motor, sin guardar nada. */
+export function previewPlanProposal(proposal: PlanProposal): PlanAdjustResult {
+  return planAdjust(proposal);
+}
+
+/** Aplica la propuesta validada y la guarda (se sincroniza). */
+export function applyPlanProposal(proposal: PlanProposal): PlanAdjustResult {
+  const result = planAdjust(proposal);
+  if (result.applied.length > 0) {
+    saveMesocycle(result.mesocycle);
+    // Un entreno a medias de la sesión cambiada ya no encaja con el plan nuevo.
+    if (result.nextSessionChanged) clearWorkoutDraft();
+  }
+  return result;
 }
 
 // ── Utilidades ──────────────────────────────────────────────────────────────

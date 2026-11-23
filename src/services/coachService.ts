@@ -6,7 +6,9 @@ import type {
   CoachReviewResponse,
   CoachTurn,
 } from "@/lib/coachApi";
+import type { PlanResponse } from "@/lib/planApi";
 import { STORAGE_KEYS, readJson, writeJson } from "@/services/storage";
+import { getPlanSessionsForCoach } from "@/services/strengthService";
 
 export type CoachResult<T> =
   ({ ok: true } & T) | { ok: false; error: string; remaining: number | null | undefined };
@@ -67,4 +69,13 @@ export function sendCoachMessage(
 
 export function getCachedReview(): CachedReview | null {
   return readJson<CachedReview | null>(STORAGE_KEYS.coachReview, null);
+}
+
+/** Pide a la IA cambios para el plan según lo que pide el usuario («hoy tengo 40 min»…). */
+export function requestPlanAdjustment(
+  peticion: string,
+  fetcher: Fetcher = (u, i) => fetch(u, i),
+): Promise<CoachResult<PlanResponse>> {
+  const { sesiones, proximaSesion } = getPlanSessionsForCoach();
+  return callCoach<PlanResponse>({ kind: "plan", peticion, sesiones, proximaSesion }, fetcher);
 }

@@ -175,6 +175,124 @@ describe("coach IA", () => {
     expect(calls[0]!.output_config?.effort).toBe("low");
   });
 
+  it("el ajuste de plan limita la IA al catálogo y a las sesiones, y descarta lo inválido", async () => {
+    const proposal = {
+      resumen: "Hoy, versión corta.",
+      cambios: [
+        {
+          tipo: "quitar",
+          sesion: "Torso A",
+          alcance: "proxima",
+          ejercicio: "ex-curl-barra",
+          nuevoEjercicio: "",
+          series: 0,
+          motivo: "Tiempo",
+        },
+        {
+          tipo: "sustituir",
+          sesion: "Torso A",
+          alcance: "siempre",
+          ejercicio: "ex-banca-barra",
+          nuevoEjercicio: "ex-inventado",
+          series: 0,
+          motivo: "x",
+        },
+        {
+          tipo: "series",
+          sesion: "Otra",
+          alcance: "proxima",
+          ejercicio: "ex-banca-barra",
+          nuevoEjercicio: "",
+          series: 2,
+          motivo: "x",
+        },
+      ],
+    };
+    const { client, calls } = fakeClient(() => text(JSON.stringify(proposal)));
+    const cookie = await user();
+    const res = await handleCoach(
+      post(cookie, {
+        kind: "plan",
+        peticion: "Hoy tengo 40 minutos",
+        proximaSesion: "Torso A",
+        sesiones: [
+          {
+            titulo: "Torso A",
+            ejercicios: [
+              { id: "ex-banca-barra", series: 3, reps: "5-7" },
+              { id: "ex-curl-barra", series: 2, reps: "8-10" },
+              { id: "ex-falso", series: 3, reps: "8" },
+            ],
+          },
+        ],
+      }),
+      env(),
+      deps(client),
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      proposal: {
+        cambios: {
+          ejercicio: string | null;
+          nuevoEjercicio: string | null;
+          series: number | null;
+        }[];
+      };
+      remaining: number;
+    };
+    expect(body.remaining).toBe(2);
+    expect(body.proposal.cambios).toHaveLength(2); // la sesión «Otra» no existe
+    expect(body.proposal.cambios[0]).toMatchObject({
+      ejercicio: "ex-curl-barra",
+      nuevoEjercicio: null,
+      series: null,
+    });
+    expect(body.proposal.cambios[1]).toMatchObject({ nuevoEjercicio: null }); // id inventado → null
+
+    const schema = calls[0]!.output_config!.format!.schema as {
+      properties: {
+        cambios: {
+          items: { properties: { sesion: { enum: string[] }; nuevoEjercicio: { enum: string[] } } };
+        };
+      };
+    };
+    expect(schema.properties.cambios.items.properties.sesion.enum).toEqual(["Torso A"]);
+    expect(schema.properties.cambios.items.properties.nuevoEjercicio.enum).toContain(
+      "ex-press-maquina",
+    );
+    const prompt = String(calls[0]!.messages[0]!.content);
+    expect(prompt).toContain("Hoy tengo 40 minutos");
+    expect(prompt).not.toContain("ex-falso");
+  });
+
+  it("rechaza peticiones de plan mal formadas", async () => {
+    const { client, calls } = fakeClient(() => text("{}"));
+    const cookie = await user();
+    expect(
+      (
+        await handleCoach(
+          post(cookie, { kind: "plan", peticion: "", sesiones: [] }),
+          env(),
+          deps(client),
+        )
+      ).status,
+    ).toBe(400);
+    expect(
+      (
+        await handleCoach(
+          post(cookie, {
+            kind: "plan",
+            peticion: "x".repeat(501),
+            sesiones: [{ titulo: "A", ejercicios: [] }],
+          }),
+          env(),
+          deps(client),
+        )
+      ).status,
+    ).toBe(400);
+    expect(calls).toHaveLength(0);
+  });
+
   it("limita a 3 consultas por semana salvo a los correos sin límite", async () => {
     const { client } = fakeClient(() => text("Ok"));
     const cookie = await user();

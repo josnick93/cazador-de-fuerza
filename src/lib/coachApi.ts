@@ -11,8 +11,10 @@ export interface CoachTurn {
   text: string;
 }
 
+import type { PlanRequestBody } from "@/lib/planApi";
+
 export type CoachRequest =
-  { kind: "review" } | { kind: "chat"; message: string; history: CoachTurn[] };
+  { kind: "review" } | { kind: "chat"; message: string; history: CoachTurn[] } | PlanRequestBody;
 
 export interface CoachReviewResponse {
   review: CoachReview;

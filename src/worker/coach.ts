@@ -18,7 +18,16 @@ import {
   type CoachTurn,
 } from "@/lib/coachApi";
 import { NUTRITION_DAYS } from "@/lib/nutritionApi";
-import type { Goal, UserProfile, WorkoutLog } from "@/types";
+import {
+  PLAN_MAX_CHANGES,
+  PLAN_MAX_REQUEST_CHARS,
+  type PlanChange,
+  type PlanProposal,
+  type PlanRequestBody,
+} from "@/lib/planApi";
+import { EXERCISE_CATALOG } from "@/data/exercises";
+import { isExerciseAvailable } from "@/engine/generator";
+import type { Equipment, Goal, UserProfile, WorkoutLog } from "@/types";
 import { currentUser, enabled, type AuthEnv } from "./auth";
 import { json } from "./http";
 import { readNutrition } from "./nutrition";
@@ -105,6 +114,7 @@ function parseRequest(raw: unknown): CoachRequest | null {
   if (typeof raw !== "object" || raw === null) return null;
   const body = raw as { kind?: unknown; message?: unknown; history?: unknown };
   if (body.kind === "review") return { kind: "review" };
+  if (body.kind === "plan") return parsePlanRequest(raw);
   if (body.kind !== "chat") return null;
   if (typeof body.message !== "string") return null;
   const message = body.message.trim();
@@ -123,6 +133,50 @@ function parseRequest(raw: unknown): CoachRequest | null {
     }
   }
   return { kind: "chat", message, history };
+}
+
+const CATALOG_IDS = new Set(EXERCISE_CATALOG.map((e) => e.id));
+
+function parsePlanRequest(raw: unknown): PlanRequestBody | null {
+  const body = raw as { peticion?: unknown; sesiones?: unknown; proximaSesion?: unknown };
+  if (typeof body.peticion !== "string") return null;
+  const peticion = body.peticion.trim();
+  if (!peticion || peticion.length > PLAN_MAX_REQUEST_CHARS) return null;
+  if (!Array.isArray(body.sesiones) || body.sesiones.length === 0 || body.sesiones.length > 7)
+    return null;
+  const sesiones: PlanRequestBody["sesiones"] = [];
+  for (const raw of body.sesiones) {
+    const s = raw as { titulo?: unknown; ejercicios?: unknown };
+    if (
+      typeof s.titulo !== "string" ||
+      !s.titulo ||
+      s.titulo.length > 60 ||
+      !Array.isArray(s.ejercicios)
+    )
+      return null;
+    const ejercicios = s.ejercicios
+      .slice(0, 10)
+      .map((e) => e as { id?: unknown; series?: unknown; reps?: unknown })
+      .filter(
+        (e): e is { id: string; series: number; reps: string } =>
+          typeof e.id === "string" &&
+          CATALOG_IDS.has(e.id) &&
+          typeof e.series === "number" &&
+          typeof e.reps === "string",
+      )
+      .map((e) => ({
+        id: e.id,
+        nombre: EXERCISE_CATALOG.find((x) => x.id === e.id)!.name,
+        series: e.series,
+        reps: e.reps.slice(0, 10),
+      }));
+    sesiones.push({ titulo: s.titulo, ejercicios });
+  }
+  const proximaSesion =
+    typeof body.proximaSesion === "string" && sesiones.some((s) => s.titulo === body.proximaSesion)
+      ? body.proximaSesion
+      : null;
+  return { kind: "plan", peticion, sesiones, proximaSesion };
 }
 
 /** Resumen compacto de los datos del atleta para el modelo. */
@@ -229,6 +283,130 @@ function textOf(message: Anthropic.Message): string {
 }
 
 class CoachRefusal extends Error {}
+
+/** Equipamiento del perfil sincronizado (para no proponer ejercicios que no puede hacer). */
+async function userEquipment(db: Database, userId: string): Promise<Equipment> {
+  const row = await db
+    .prepare(
+      `SELECT json_extract(data, '$.equipment') AS equipment FROM fuerza_records WHERE user_id = ?1 AND store = 'profile' AND key = 'me' AND deleted = 0`,
+    )
+    .bind(userId)
+    .first<{ equipment: string | null }>();
+  return row?.equipment === "casa" || row?.equipment === "mancuernas" ? row.equipment : "gimnasio";
+}
+
+async function runPlan(
+  client: CoachClient,
+  context: string,
+  request: PlanRequestBody,
+  equipment: Equipment,
+): Promise<PlanProposal> {
+  const available = EXERCISE_CATALOG.filter((e) => isExerciseAvailable(e, equipment));
+  const titles = request.sesiones.map((s) => s.titulo);
+  const ids = available.map((e) => e.id);
+  const schema = {
+    type: "object",
+    properties: {
+      resumen: { type: "string", description: "Qué cambias y por qué, en 1-2 frases." },
+      cambios: {
+        type: "array",
+        description: `Como mucho ${PLAN_MAX_CHANGES} cambios. Vacío si no hace falta cambiar nada.`,
+        items: {
+          type: "object",
+          properties: {
+            tipo: { type: "string", enum: ["sustituir", "series", "quitar", "anadir"] },
+            sesion: { type: "string", enum: titles },
+            alcance: { type: "string", enum: ["proxima", "siempre"] },
+            ejercicio: {
+              type: "string",
+              enum: ["", ...ids],
+              description: "Ejercicio actual; vacío al añadir.",
+            },
+            nuevoEjercicio: {
+              type: "string",
+              enum: ["", ...ids],
+              description: "Ejercicio nuevo al sustituir o añadir; vacío en otro caso.",
+            },
+            series: {
+              type: "integer",
+              description: "Series nuevas (1-6) al cambiar series o añadir; 0 en otro caso.",
+            },
+            motivo: { type: "string" },
+          },
+          required: [
+            "tipo",
+            "sesion",
+            "alcance",
+            "ejercicio",
+            "nuevoEjercicio",
+            "series",
+            "motivo",
+          ],
+          additionalProperties: false,
+        },
+      },
+    },
+    required: ["resumen", "cambios"],
+    additionalProperties: false,
+  };
+  const catalogText = available
+    .map((e) => `${e.id} | ${e.name} | ${e.muscle} | ${e.pattern}`)
+    .join("\n");
+  const message = await client.messages.create({
+    model: MODEL,
+    max_tokens: 16000,
+    system: systemBlocks(context),
+    output_config: { effort: "medium", format: { type: "json_schema", schema } },
+    messages: [
+      {
+        role: "user",
+        content: `Quiero ajustar mi plan: «${request.peticion}».
+
+Próximas sesiones del plan (JSON): ${JSON.stringify(request.sesiones)}
+La sesión de hoy (la próxima pendiente) es: ${request.proximaSesion ?? "ninguna"}.
+
+Ejercicios que puedo hacer (id | nombre | músculo | patrón):
+${catalogText}
+
+Reglas para proponer cambios:
+- Solo ejercicios de esa lista. Al sustituir, elige otro del mismo músculo (mejor del mismo patrón).
+- No propongas pesos: la app los calcula.
+- Deja al menos 3 ejercicios por sesión.
+- Usa alcance "proxima" para algo puntual (hoy tengo poco tiempo, una molestia, una máquina ocupada) y "siempre" para cambiar el plan.
+- Si no hace falta cambiar nada, deja la lista vacía y explícalo en el resumen.`,
+      },
+    ],
+  });
+  if (message.stop_reason === "refusal") throw new CoachRefusal();
+  const parsed = JSON.parse(textOf(message)) as { resumen?: unknown; cambios?: unknown };
+  if (typeof parsed.resumen !== "string" || !Array.isArray(parsed.cambios)) {
+    throw new Error("Propuesta con formato inesperado");
+  }
+  const valid = new Set(ids);
+  const cambios: PlanChange[] = [];
+  for (const raw of parsed.cambios.slice(0, PLAN_MAX_CHANGES)) {
+    const c = raw as Record<string, unknown>;
+    const tipo = c["tipo"];
+    const alcance = c["alcance"];
+    const sesion = c["sesion"];
+    if (tipo !== "sustituir" && tipo !== "series" && tipo !== "quitar" && tipo !== "anadir")
+      continue;
+    if (alcance !== "proxima" && alcance !== "siempre") continue;
+    if (typeof sesion !== "string" || !titles.includes(sesion)) continue;
+    const idOrNull = (v: unknown) => (typeof v === "string" && valid.has(v) ? v : null);
+    const series = typeof c["series"] === "number" && c["series"] > 0 ? c["series"] : null;
+    cambios.push({
+      tipo,
+      sesion,
+      alcance,
+      ejercicio: idOrNull(c["ejercicio"]),
+      nuevoEjercicio: idOrNull(c["nuevoEjercicio"]),
+      series,
+      motivo: typeof c["motivo"] === "string" ? c["motivo"] : "",
+    });
+  }
+  return { resumen: parsed.resumen, cambios };
+}
 
 async function runReview(client: CoachClient, context: string): Promise<CoachReview> {
   const message = await client.messages.create({
@@ -337,7 +515,16 @@ export async function handleCoach(
     const result =
       body.kind === "review"
         ? { review: await runReview(client, context) }
-        : { reply: await runChat(client, context, body) };
+        : body.kind === "plan"
+          ? {
+              proposal: await runPlan(
+                client,
+                context,
+                body,
+                await userEquipment(env.DB, session.user.id),
+              ),
+            }
+          : { reply: await runChat(client, context, body) };
     if (!unlimited) await addCoachUsage(env.DB, session.user.id, week);
     return json({ ...result, remaining: unlimited ? null : limit - used - 1 });
   } catch (e) {
