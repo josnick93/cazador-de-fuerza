@@ -67,7 +67,36 @@ const FUERZA_SCHEMA = [
    BEGIN
      DELETE FROM fuerza_records WHERE user_id = OLD.id;
    END`,
+  // Consultas al coach IA por usuario y semana (lunes, YYYY-MM-DD) para el límite gratuito.
+  `CREATE TABLE IF NOT EXISTS fuerza_coach_usage (
+    user_id TEXT NOT NULL,
+    week TEXT NOT NULL,
+    count INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (user_id, week)
+  )`,
+  `CREATE TRIGGER IF NOT EXISTS fuerza_coach_usage_delete_user AFTER DELETE ON users
+   BEGIN
+     DELETE FROM fuerza_coach_usage WHERE user_id = OLD.id;
+   END`,
 ];
+
+export async function coachUsage(db: Database, userId: string, week: string): Promise<number> {
+  const row = await db
+    .prepare(`SELECT count FROM fuerza_coach_usage WHERE user_id = ?1 AND week = ?2`)
+    .bind(userId, week)
+    .first<{ count: number }>();
+  return row?.count ?? 0;
+}
+
+export async function addCoachUsage(db: Database, userId: string, week: string): Promise<void> {
+  await db
+    .prepare(
+      `INSERT INTO fuerza_coach_usage (user_id, week, count) VALUES (?1, ?2, 1)
+       ON CONFLICT (user_id, week) DO UPDATE SET count = count + 1`,
+    )
+    .bind(userId, week)
+    .run();
+}
 
 const ready = new WeakMap<Database, Promise<unknown>>();
 

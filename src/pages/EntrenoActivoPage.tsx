@@ -30,6 +30,11 @@ import {
   substituteExercise,
 } from "@/services/strengthService";
 import { parseRepRange } from "@/engine/progression";
+import {
+  clearWorkoutDraft,
+  getWorkoutDraft,
+  saveWorkoutDraft,
+} from "@/services/workoutDraftService";
 import type {
   ActiveSetRow,
   Exercise,
@@ -65,13 +70,21 @@ function buildInitialSets(planned: PlannedExercise): ActiveSetRow[] {
 }
 
 export function EntrenoActivoPage() {
-  const { profile, setView, updateProfile } = useApp();
+  const { profile, setView, updateProfile, workoutStartIdx } = useApp();
   const [workout] = useState(() => getTodayWorkout());
+  // Entreno a medias en este dispositivo: se retoma tal cual (series, ejercicio y temporizadores).
+  const [draft] = useState(() => getWorkoutDraft(workout.id));
 
   // Plan efectivo por ejercicio (cambia al sustituir); workout.exercises guarda el original.
-  const [plannedList, setPlannedList] = useState<PlannedExercise[]>(() => workout.exercises);
-  const [currentIdx, setCurrentIdx] = useState(0);
+  const [plannedList, setPlannedList] = useState<PlannedExercise[]>(
+    () => draft?.plannedList ?? workout.exercises,
+  );
+  const [currentIdx, setCurrentIdx] = useState(() => {
+    const idx = workoutStartIdx ?? draft?.currentIdx ?? 0;
+    return idx >= 0 && idx < workout.exercises.length ? idx : 0;
+  });
   const [setsByExercise, setSetsByExercise] = useState<Record<number, ActiveSetRow[]>>(() => {
+    if (draft) return draft.setsByExercise;
     const map: Record<number, ActiveSetRow[]> = {};
     workout.exercises.forEach((planned, idx) => {
       map[idx] = buildInitialSets(planned);
@@ -79,27 +92,35 @@ export function EntrenoActivoPage() {
     return map;
   });
 
-  const [restSeconds, setRestSeconds] = useState(0);
-  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  // Cronómetro y descanso por marcas de tiempo: siguen corriendo aunque salgas de la pantalla.
+  const [startedAt] = useState(() => draft?.startedAt ?? Date.now());
+  const [restEndsAt, setRestEndsAt] = useState<number | null>(() => draft?.restEndsAt ?? null);
+  const [now, setNow] = useState(() => Date.now());
+  const elapsedSeconds = Math.max(0, Math.floor((now - startedAt) / 1000));
+  const restSeconds = restEndsAt ? Math.max(0, Math.ceil((restEndsAt - now) / 1000)) : 0;
+  const setRestSeconds = (seconds: number) =>
+    setRestEndsAt(seconds > 0 ? Date.now() + seconds * 1000 : null);
   const [showSwapModal, setShowSwapModal] = useState(false);
   const [guideId, setGuideId] = useState<string | null>(null);
   const [summary, setSummary] = useState<WorkoutSummary | null>(null);
 
   useEffect(() => {
     if (summary) return;
-    const interval = window.setInterval(() => {
-      setElapsedSeconds((s) => s + 1);
-    }, 1000);
+    const interval = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(interval);
   }, [summary]);
 
   useEffect(() => {
-    if (restSeconds <= 0) return;
-    const timer = window.setInterval(() => {
-      setRestSeconds((s) => (s > 1 ? s - 1 : 0));
-    }, 1000);
-    return () => window.clearInterval(timer);
-  }, [restSeconds]);
+    if (summary) return;
+    saveWorkoutDraft({
+      workoutId: workout.id,
+      plannedList,
+      currentIdx,
+      setsByExercise,
+      startedAt,
+      restEndsAt,
+    });
+  }, [summary, workout.id, plannedList, currentIdx, setsByExercise, startedAt, restEndsAt]);
 
   const originalPlanned = workout.exercises[currentIdx];
   const currentPlanned = plannedList[currentIdx];
@@ -167,6 +188,7 @@ export function EntrenoActivoPage() {
     }));
 
     setRestSeconds(0);
+    clearWorkoutDraft();
     if (exercises.every((ex) => ex.sets.length === 0)) {
       // Sin series no se registra nada: la misión sigue pendiente.
       setSummary({
@@ -554,7 +576,7 @@ export function EntrenoActivoPage() {
 
       <RestTimerBar
         secondsLeft={restSeconds}
-        onAdd30={() => setRestSeconds((s) => s + 30)}
+        onAdd30={() => setRestSeconds(restSeconds + 30)}
         onSkip={() => setRestSeconds(0)}
       />
 

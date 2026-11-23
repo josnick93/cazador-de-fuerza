@@ -43,6 +43,9 @@ interface AppContextValue {
   updateProfile: (patch: Partial<UserProfile>) => UserProfile;
   view: AppView;
   setView: (view: AppView) => void;
+  /** Ejercicio con el que abrir el entreno (pulsado en Hoy); null = donde se dejó. */
+  workoutStartIdx: number | null;
+  startWorkout: (exerciseIdx?: number) => void;
   coachPendingPrompt: string | null;
   openCoachWithPrompt: (prompt: string) => void;
   clearCoachPendingPrompt: () => void;
@@ -74,6 +77,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [hydrated, setHydrated] = useState(false);
   const [view, setView] = useState<AppView>("hoy");
   const [coachPendingPrompt, setCoachPendingPrompt] = useState<string | null>(null);
+  const [workoutStartIdx, setWorkoutStartIdx] = useState<number | null>(null);
+
+  const startWorkout = (exerciseIdx?: number) => {
+    setWorkoutStartIdx(exerciseIdx ?? null);
+    setView("entreno");
+  };
   const [account, setAccount] = useState<AccountState>({ enabled: false, user: null });
   const [accountLoaded, setAccountLoaded] = useState(false);
   const [loginSkipped, setLoginSkipped] = useState(false);
@@ -187,6 +196,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         updateProfile,
         view,
         setView,
+        workoutStartIdx,
+        startWorkout,
         coachPendingPrompt,
         openCoachWithPrompt,
         clearCoachPendingPrompt,

@@ -1,10 +1,14 @@
-import { Clock, Flame, Play, Swords } from "lucide-react";
+import { ChevronRight, Clock, Flame, Play, Swords } from "lucide-react";
 import { useApp } from "@/components/AppContext";
 import { formatWeight, getExerciseById, getTodayWorkout } from "@/services/strengthService";
+import { getWorkoutDraft } from "@/services/workoutDraftService";
 
 export function HoyPage() {
-  const { profile, setView } = useApp();
+  const { profile, startWorkout } = useApp();
   const workout = getTodayWorkout();
+  const draft = getWorkoutDraft(workout.id);
+  const doneByExercise = (idx: number) =>
+    draft?.setsByExercise[idx]?.filter((row) => row.completed).length ?? 0;
 
   return (
     <div className="space-y-5 px-4 py-4">
@@ -36,11 +40,11 @@ export function HoyPage() {
 
         <button
           type="button"
-          onClick={() => setView("entreno")}
+          onClick={() => startWorkout()}
           className="mt-4 flex min-h-[56px] w-full items-center justify-center gap-2 rounded-xl bg-primary px-5 font-display text-lg font-bold tracking-wide text-primary-foreground system-glow transition-transform active:scale-[0.98]"
         >
           <Play className="h-5 w-5 fill-current" />
-          Empezar entreno
+          {draft ? "Continuar entreno" : "Empezar entreno"}
         </button>
       </section>
 
@@ -60,9 +64,11 @@ export function HoyPage() {
             const exercise = getExerciseById(planned.exerciseId);
             if (!exercise) return null;
             return (
-              <div
+              <button
+                type="button"
                 key={planned.exerciseId}
-                className="flex items-center gap-3 rounded-2xl border border-border bg-card p-3.5"
+                onClick={() => startWorkout(index)}
+                className="flex w-full items-center gap-3 rounded-2xl border border-border bg-card p-3.5 text-left active:scale-[0.99]"
               >
                 <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-primary/30 bg-surface font-display text-sm font-bold text-primary">
                   0{index + 1}
@@ -78,9 +84,14 @@ export function HoyPage() {
                       : planned.repRange}{" "}
                     @ RIR {planned.targetRir} · {formatWeight(planned.targetKg, profile.unit)}
                   </p>
-                  <p className="mt-0.5 text-xs text-muted-foreground">{planned.lastSessionText}</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    {doneByExercise(index) > 0
+                      ? `${doneByExercise(index)}/${planned.sets} series hechas`
+                      : planned.lastSessionText}
+                  </p>
                 </div>
-              </div>
+                <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" />
+              </button>
             );
           })}
         </div>

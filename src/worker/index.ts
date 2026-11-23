@@ -3,13 +3,15 @@
  * - /api/auth/*: login con Google (ver auth.ts).
  * - /api/sync: sincronización de los datos del usuario (ver sync.ts).
  * - /api/nutrition: lectura de los datos de MacroQuest de la cuenta (ver nutrition.ts).
+ * - /api/coach: coach IA con la API de Claude (ver coach.ts).
  */
-import { handleAuth, type AuthEnv } from "./auth";
+import { handleAuth } from "./auth";
+import { handleCoach, type CoachEnv } from "./coach";
 import { json } from "./http";
 import { handleNutrition } from "./nutrition";
 import { handleSync } from "./sync";
 
-export type ApiEnv = AuthEnv;
+export type ApiEnv = CoachEnv;
 
 /** Bindings del Worker: nitro los deja en `request.runtime.cloudflare.env` (no llegan como parámetro). */
 export function workerEnv(request: Request): ApiEnv {
@@ -33,6 +35,14 @@ export async function handleApi(request: Request, env: ApiEnv): Promise<Response
     } catch (e) {
       console.error("sync", e);
       return json({ error: "Error al sincronizar" }, 500);
+    }
+  }
+  if (pathname === "/api/coach") {
+    try {
+      return await handleCoach(request, env);
+    } catch (e) {
+      console.error("coach", e);
+      return json({ error: "Error del coach" }, 500);
     }
   }
   if (pathname === "/api/nutrition") {

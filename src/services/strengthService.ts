@@ -19,15 +19,12 @@ import {
   type Verdict,
 } from "@/engine/verdict";
 import { getCachedNutrition } from "@/services/nutritionService";
-import { MOCK_INITIAL_COACH_MESSAGES, MOCK_WEEKLY_REVIEW } from "@/mocks/workouts";
 import { uniqueId } from "@/lib/id";
 import { STORAGE_KEYS, readJson, removeKey, writeJson } from "@/services/storage";
 import { EPOCH, markDirty, resetSyncMeta } from "@/services/syncService";
 import type {
   Equipment,
   ExerciseGuide,
-  CoachMessage,
-  CoachWeeklyReview,
   Exercise,
   GeneratedWeek,
   LiftId,
@@ -526,30 +523,6 @@ export function getStagnationAlert(liftId: LiftId): StagnationAlert | null {
     summary: `${liftName} estancada ${plateau.weeksStalled} semanas`,
     cause: explainPlateau(plateau.weeksStalled),
   };
-}
-
-// ── Coach (mock hasta la Fase 4) ────────────────────────────────────────────
-
-export function getWeeklyReview(): CoachWeeklyReview {
-  return MOCK_WEEKLY_REVIEW;
-}
-
-export function getInitialCoachMessages(): CoachMessage[] {
-  return MOCK_INITIAL_COACH_MESSAGES;
-}
-
-export function getCoachReply(prompt: string): string {
-  const lower = prompt.toLowerCase();
-  if (lower.includes("banca") || lower.includes("subo") || lower.includes("estanc")) {
-    return "Tu Press Banca lleva 3 semanas en 102,5 kg de e1RM. Los datos de MacroQuest muestran que tu proteína bajó a 125 g/día (-24%) y tus calorías bajaron 350 kcal justo en S6-S8. Plan inmediato: sube proteína a 160 g/día, descansa 2:30 min entre series y trabaja el top set a 5 reps @ RIR 2 esta semana.";
-  }
-  if (lower.includes("semana") || lower.includes("ajusta")) {
-    return "He reajustado tu Semana 3 (Intensificación): mantengo Sentadilla y Peso Muerto como están porque progresan bien, pero bajo 1 serie accesoria de empuje para que llegues fresco al Press Banca del lunes.";
-  }
-  if (lower.includes("tiempo") || lower.includes("rápido") || lower.includes("poco")) {
-    return "Modo Misión Rápida (32 min): haz solo los 3 básicos de hoy — Press Banca (3×6 @ RIR 2), Remo con Barra (3×6 @ RIR 2) y Press Militar (2×8 @ RIR 2) con 2 min de descanso. Conservas el 85% del estímulo de fuerza.";
-  }
-  return "Recibido, Cazador. Prioriza cumplir el RIR objetivo (RIR 2 en acumulados) y mantén tu ingesta por encima de 160 g de proteína para desbloquear el siguiente rango de fuerza.";
 }
 
 // ── Utilidades ──────────────────────────────────────────────────────────────
