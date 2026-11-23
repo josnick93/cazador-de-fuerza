@@ -148,13 +148,6 @@ export interface MesocycleWeek {
   days: MesocycleDay[];
 }
 
-export interface CoachWeeklyReview {
-  weekLabel: string;
-  headline: string;
-  cause: string;
-  changes: string[];
-}
-
 export interface CoachMessage {
   id: string;
   role: "coach" | "user";

@@ -31,6 +31,19 @@ function stubAuthServer(
     vi.fn(async (url: string, init?: RequestInit) => {
       calls.push(`${init?.method ?? "GET"} ${url}`);
       if (url === "/api/auth/logout") current = null;
+      if (url === "/api/coach") {
+        const body = JSON.parse(String(init?.body)) as { kind: string; message?: string };
+        return body.kind === "review"
+          ? Response.json({
+              review: {
+                titular: "Semana sólida",
+                causa: "Tu banca sube.",
+                cambios: ["Uno", "Dos", "Tres"],
+              },
+              remaining: 2,
+            })
+          : Response.json({ reply: `Coach: ${body.message}`, remaining: 1 });
+      }
       if (url === "/api/nutrition") {
         return Response.json({ connected: false, goal: null, days: [], weights: [] });
       }
@@ -229,10 +242,10 @@ describe("Flujo de la app", () => {
     expect(screen.getByText(/Aún no hay récords/)).toBeInTheDocument();
   });
 
-  it("abre Coach desde la alerta de estancamiento y responde al prompt pendiente", () => {
+  it("abre Coach desde la alerta de estancamiento y responde al prompt pendiente", async () => {
+    const calls = stubAuthServer({ id: "g1", email: "ana@example.com", name: "Ana" });
     seedProfile();
     seedLogs(weeklyBenchLogs([95, 97.5, 99.5, 101, 102.5, 102.5, 102, 102.5]));
-    vi.useFakeTimers();
     renderApp();
     fireEvent.click(nav().getByRole("button", { name: "Progreso" }));
     expect(screen.getByText("Banca estancada 3 semanas")).toBeInTheDocument();
@@ -240,12 +253,29 @@ describe("Flujo de la app", () => {
 
     expect(screen.getByText("REVISIÓN SEMANAL")).toBeInTheDocument();
     const log = within(screen.getByRole("log"));
+    expect(await log.findByText("Coach: ¿Por qué no subo en banca?")).toBeInTheDocument();
     expect(log.getByText("¿Por qué no subo en banca?")).toBeInTheDocument();
+    expect(screen.getByText("Te queda 1 consulta esta semana")).toBeInTheDocument();
+    expect(calls).toContain("POST /api/coach");
+  });
 
-    act(() => {
-      vi.advanceTimersByTime(1000);
-    });
-    expect(log.getByText(/Tu Press Banca lleva 3 semanas/)).toBeInTheDocument();
+  it("el coach pide la revisión semanal a la IA y la guarda", async () => {
+    stubAuthServer({ id: "g1", email: "ana@example.com", name: "Ana" });
+    seedProfile();
+    renderApp();
+    fireEvent.click(nav().getByRole("button", { name: "Coach" }));
+    fireEvent.click(await screen.findByRole("button", { name: /Pedir revisión al coach/ }));
+    expect(await screen.findByRole("heading", { name: "Semana sólida" })).toBeInTheDocument();
+    expect(screen.getByText("Tres")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Nueva revisión con IA/ })).toBeInTheDocument();
+  });
+
+  it("sin sesión el coach invita a entrar", () => {
+    seedProfile();
+    renderApp();
+    fireEvent.click(nav().getByRole("button", { name: "Coach" }));
+    expect(screen.getByRole("button", { name: /Entrar para usar el coach/ })).toBeInTheDocument();
+    expect(screen.queryByLabelText("Mensaje para el coach")).not.toBeInTheDocument();
   });
 
   it("Progreso muestra el veredicto con los datos de MacroQuest", () => {

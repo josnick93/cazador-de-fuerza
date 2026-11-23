@@ -30,7 +30,7 @@ Futuro: Cloudflare Workers + D1 + login con Google (lo mismo que MacroQuest, `..
 - Hecho: `routes/index.tsx` monta `AppProvider` + `AppShell` (switch de vistas).
 - Hecho: páginas Plan, Coach, Perfil.
 - Hecho (Fase 2): motor en `src/engine/*` (progresión, estancamiento, generador, sustitución, XP), catálogo en `src/data/exercises.ts`,
-  persistencia en localStorage vía `src/services/storage.ts`. Solo el coach sigue con mocks (Fase 4).
+  persistencia en localStorage vía `src/services/storage.ts`. Ya no quedan mocks.
 - Hecho: Biblioteca (pestaña propia + ficha `ExerciseGuideSheet` en el entreno con "Técnica" y "Máquina ocupada").
   Fichas en español en `src/data/exerciseGuides.ts`; fotos de free-exercise-db (dominio público) en
   `public/exercises/<id>/{0,1}.webp` (560 px, WebP q60). Ejercicio nuevo ⇒ ficha + fotos (lo exige un test).
@@ -96,9 +96,16 @@ Leer ese código antes de diseñar nada. Secretos con `wrangler secret`, nunca e
       de la forma de `WorkoutLog`: no cambiarlos sin actualizar `lib/fuerzaApi.ts` de MacroQuest.
 
 ### Fase 4 — Coach IA (API de Anthropic)
-- [ ] Endpoint `/api/coach` en el Worker: recibe 8 semanas de e1RM/nutrición/sueño, devuelve JSON {causa, cambios[3]}. Modelo `claude-haiku-5-5`. Clave en secret `ANTHROPIC_API_KEY`.
+- [x] Endpoint `/api/coach` (`src/worker/coach.ts`, SDK `@anthropic-ai/sdk`, modelo `claude-haiku-5-5`): el servidor monta
+      el contexto desde D1 (8 semanas de e1RM y sesiones, perfil, nutrición/peso de MacroQuest y el veredicto
+      determinista). `review` → JSON estructurado {titular, causa, cambios[3]} (`output_config.format`, effort medium);
+      `chat` → 2-5 frases (effort low). System prompt fijo con `cache_control`, datos del atleta detrás. Sin sueño
+      (no hay datos). App: `services/coachService.ts` + `CoachPage` (sin mocks; sin sesión invita a entrar).
+      Secret `ANTHROPIC_API_KEY` en el Worker.
 - [ ] Endpoint `/api/generate-plan`: ajusta/crea el mesociclo con IA a partir del motor local (la IA propone, el motor valida pesos).
-- [ ] Límite gratis: 3 consultas/semana. Premium ilimitado.
+- [x] Límite gratis: 3 consultas/semana (tabla `fuerza_coach_usage`, solo cuentan las que salen bien; configurable con
+      `COACH_WEEKLY_LIMIT`). Sin límite para los correos del secret `COACH_UNLIMITED_EMAILS` (separados por comas).
+      Pendiente: «Premium ilimitado» cuando haya pagos (el `isPremium` del perfil lo controla la app, no es fiable).
 
 ### Fase 5 — Distribución y monetización
 - [ ] PWA (manifest, service worker, icono) para que los amigos la instalen sin store.

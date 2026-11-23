@@ -7,6 +7,8 @@ export const STORAGE_KEYS = {
   nutrition: "ironquest_nutrition_v1",
   /** Entreno en curso (solo este dispositivo; ver workoutDraftService). */
   activeWorkout: "ironquest_active_workout_v1",
+  /** Última revisión del coach IA (solo este dispositivo). */
+  coachReview: "ironquest_coach_review_v1",
 } as const;
 
 function storage(): Storage | null {
