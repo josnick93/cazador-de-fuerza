@@ -24,6 +24,11 @@ import {
 } from "@/services/syncService";
 import type { UserProfile } from "@/types";
 
+import { readJson, writeJson } from "@/services/storage";
+
+/** Preferencia del dispositivo: no volver a mostrar la pantalla de entrada. */
+const SKIP_LOGIN_KEY = "ironquest_skip_login_v1";
+
 /** Espera tras un cambio local antes de subirlo (agrupa varios guardados seguidos). */
 const SYNC_DEBOUNCE_MS = 2500;
 
@@ -43,7 +48,12 @@ interface AppContextValue {
   clearCoachPendingPrompt: () => void;
   /** Cuenta de Google; `enabled: false` sin servidor de login. */
   account: AccountState;
+  /** false hasta saber si hay servidor de login y sesión. */
+  accountLoaded: boolean;
   refreshAccount: () => Promise<void>;
+  /** El usuario eligió «Seguir sin cuenta» en la pantalla de entrada (se recuerda en este dispositivo). */
+  loginSkipped: boolean;
+  skipLogin: () => void;
   /** Resultado del login con el que ha vuelto la app (se muestra en Perfil). */
   loginResult: LoginResult | null;
   /** Estado de la copia en la nube (solo con sesión). */
@@ -65,6 +75,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [view, setView] = useState<AppView>("hoy");
   const [coachPendingPrompt, setCoachPendingPrompt] = useState<string | null>(null);
   const [account, setAccount] = useState<AccountState>({ enabled: false, user: null });
+  const [accountLoaded, setAccountLoaded] = useState(false);
+  const [loginSkipped, setLoginSkipped] = useState(false);
   const [loginResult, setLoginResult] = useState<LoginResult | null>(null);
 
   const [sync, setSync] = useState<AppContextValue["sync"]>({ state: "idle", lastSyncAt: null });
@@ -73,6 +85,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const refreshAccount = async () => {
     setAccount(await getAccount());
+    setAccountLoaded(true);
+  };
+
+  const skipLogin = () => {
+    writeJson(SKIP_LOGIN_KEY, true);
+    setLoginSkipped(true);
   };
 
   const reloadLocalData = () => {
@@ -136,6 +154,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const saved = getUserProfile();
     profileRef.current = saved;
     setProfile(saved);
+    setLoginSkipped(readJson<boolean>(SKIP_LOGIN_KEY, false));
     setHydrated(true);
     const result = consumeLoginResult();
     if (result) {
@@ -172,7 +191,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
         openCoachWithPrompt,
         clearCoachPendingPrompt,
         account,
+        accountLoaded,
         refreshAccount,
+        loginSkipped,
+        skipLogin,
         loginResult,
         sync,
         syncData,
