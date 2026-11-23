@@ -102,7 +102,12 @@ Leer ese código antes de diseñar nada. Secretos con `wrangler secret`, nunca e
       `chat` → 2-5 frases (effort low). System prompt fijo con `cache_control`, datos del atleta detrás. Sin sueño
       (no hay datos). App: `services/coachService.ts` + `CoachPage` (sin mocks; sin sesión invita a entrar).
       Secret `ANTHROPIC_API_KEY` en el Worker.
-- [ ] Endpoint `/api/generate-plan`: ajusta/crea el mesociclo con IA a partir del motor local (la IA propone, el motor valida pesos).
+- [x] Ajuste del plan con IA (`kind: "plan"` en `/api/coach`, en vez de un `/api/generate-plan` aparte; cuenta para el
+      límite): la app envía la próxima sesión pendiente de cada título y la petición («hoy tengo 40 min»); la IA solo
+      elige ejercicios del catálogo disponibles (enum en el schema) y series, con alcance «proxima» o «siempre».
+      El motor (`engine/planAdjust.ts`) valida (mismo músculo, equipamiento, 1-6 series, ≥3 ejercicios, nunca sesiones
+      hechas) y calcula los pesos; la tarjeta «Ajustar con IA» de Plan muestra la vista previa y aplica.
+      No genera mesociclos desde cero: eso lo sigue haciendo el generador determinista.
 - [x] Límite gratis: 3 consultas/semana (tabla `fuerza_coach_usage`, solo cuentan las que salen bien; configurable con
       `COACH_WEEKLY_LIMIT`). Sin límite para los correos del secret `COACH_UNLIMITED_EMAILS` (separados por comas).
       Pendiente: «Premium ilimitado» cuando haya pagos (el `isPremium` del perfil lo controla la app, no es fiable).

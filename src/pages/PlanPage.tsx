@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Check, ChevronDown, Circle, Play, Target } from "lucide-react";
 import { useApp } from "@/components/AppContext";
+import { PlanAdjustCard } from "@/components/PlanAdjustCard";
 import { getActiveMesocycle, getMesocycle } from "@/services/strengthService";
 import type { MesocycleDay, MesocyclePhase, MesocycleWeek } from "@/types";
 
@@ -154,6 +155,8 @@ function WeekCard({
 
 export function PlanPage() {
   const { profile, setView } = useApp();
+  // Al aplicar cambios con IA se vuelve a leer el plan.
+  const [, setPlanVersion] = useState(0);
   const weeks = getMesocycle();
   const { templateName } = getActiveMesocycle();
   const current = weeks.find((w) => w.isCurrent) ?? weeks[0];
@@ -213,6 +216,8 @@ export function PlanPage() {
           </div>
         </div>
       </section>
+
+      <PlanAdjustCard onApplied={() => setPlanVersion((v) => v + 1)} />
 
       <section aria-label="Fases del mesociclo">
         <div className="flex gap-1">
