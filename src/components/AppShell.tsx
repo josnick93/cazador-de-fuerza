@@ -6,6 +6,7 @@ import { BibliotecaPage } from "@/pages/BibliotecaPage";
 import { CoachPage } from "@/pages/CoachPage";
 import { EntrenoActivoPage } from "@/pages/EntrenoActivoPage";
 import { HoyPage } from "@/pages/HoyPage";
+import { LoginPage } from "@/pages/LoginPage";
 import { OnboardingPage } from "@/pages/OnboardingPage";
 import { PerfilPage } from "@/pages/PerfilPage";
 import { PlanPage } from "@/pages/PlanPage";
@@ -34,23 +35,44 @@ function renderView(view: AppView) {
 }
 
 export function AppShell() {
-  const { profile, view, hydrated, dataVersion } = useApp();
+  const { profile, view, hydrated, dataVersion, account, accountLoaded, loginSkipped, sync } =
+    useApp();
   const activeView: AppView = profile.onboardingCompleted ? view : "onboarding";
+  const isNew = !profile.onboardingCompleted;
+  // Usuario nuevo con sesión: antes del onboarding se espera a la primera sincronización, por si ya tiene datos.
+  const waitingFirstSync =
+    isNew &&
+    account.user !== null &&
+    !sync.lastSyncAt &&
+    (sync.state === "idle" || sync.state === "syncing");
 
   // Layout effect: corre antes que los efectos de la página (p. ej. autoscroll del chat).
   useLayoutEffect(() => {
     window.scrollTo(0, 0);
   }, [activeView]);
 
-  if (!hydrated) {
+  if (!hydrated || (isNew && !accountLoaded) || waitingFirstSync) {
     return (
       <div
         role="status"
-        aria-label="Cargando"
+        aria-label={waitingFirstSync ? "Recuperando tus datos" : "Cargando"}
         className="grid min-h-dvh place-items-center bg-background text-primary"
       >
-        <Shield className="h-10 w-10 animate-pulse" />
+        <div className="flex flex-col items-center gap-3">
+          <Shield className="h-10 w-10 animate-pulse" />
+          {waitingFirstSync && (
+            <p className="text-sm text-muted-foreground">Recuperando tus datos…</p>
+          )}
+        </div>
       </div>
+    );
+  }
+
+  if (isNew && account.enabled && !account.user && !loginSkipped) {
+    return (
+      <MobileLayout>
+        <LoginPage />
+      </MobileLayout>
     );
   }
 

@@ -5,7 +5,7 @@ import { AppProvider } from "@/components/AppContext";
 import { AppShell } from "@/components/AppShell";
 import { STORAGE_KEYS } from "@/services/storage";
 import { getWorkoutLogs } from "@/services/strengthService";
-import { seedLogs, seedMacroQuest, seedProfile, weeklyBenchLogs } from "./fixtures";
+import { TEST_PROFILE, seedLogs, seedMacroQuest, seedProfile, weeklyBenchLogs } from "./fixtures";
 
 function renderApp() {
   return render(
@@ -20,7 +20,10 @@ function nav() {
 }
 
 /** Servidor de login simulado: /api/auth/me devuelve `user` hasta que se cierra sesión. */
-function stubAuthServer(user: { id: string; email: string; name: string | null } | null) {
+function stubAuthServer(
+  user: { id: string; email: string; name: string | null } | null,
+  syncChanges: unknown[] = [],
+) {
   let current = user;
   const calls: string[] = [];
   vi.stubGlobal(
@@ -32,7 +35,8 @@ function stubAuthServer(user: { id: string; email: string; name: string | null }
         return Response.json({ connected: false, goal: null, days: [], weights: [] });
       }
       if (url === "/api/sync") {
-        return Response.json({ epoch: "e1", cursor: 0, changes: [], more: false });
+        const changes = syncChanges.splice(0);
+        return Response.json({ epoch: "e1", cursor: changes.length, changes, more: false });
       }
       return new Response(JSON.stringify({ enabled: true, user: current }), {
         headers: { "content-type": "application/json" },
@@ -53,9 +57,9 @@ describe("Flujo de la app", () => {
     vi.unstubAllGlobals();
   });
 
-  it("un usuario nuevo empieza en el onboarding y al terminarlo recibe su plan", () => {
+  it("un usuario nuevo empieza en el onboarding y al terminarlo recibe su plan", async () => {
     renderApp();
-    expect(screen.getByText(/PASO 1\/4/)).toBeInTheDocument();
+    expect(await screen.findByText(/PASO 1\/4/)).toBeInTheDocument();
     expect(screen.queryByRole("navigation")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: /Continuar/ }));
@@ -234,6 +238,44 @@ describe("Flujo de la app", () => {
     renderApp();
     fireEvent.click(nav().getByRole("button", { name: "Progreso" }));
     expect(screen.getByText(/Entra con tu cuenta de MacroQuest/)).toBeInTheDocument();
+  });
+
+  it("un usuario nuevo con login disponible ve primero la entrada con Google", async () => {
+    stubAuthServer(null);
+    renderApp();
+    const link = await screen.findByRole("link", { name: /Entrar con Google/ });
+    expect(link).toHaveAttribute("href", "/api/auth/login");
+    expect(screen.queryByRole("navigation")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Seguir sin cuenta" }));
+    expect(screen.getByText(/PASO 1\/4/)).toBeInTheDocument();
+    cleanup();
+    renderApp(); // se recuerda en este dispositivo
+    expect(await screen.findByText(/PASO 1\/4/)).toBeInTheDocument();
+  });
+
+  it("al entrar con una cuenta que ya tiene datos se salta el onboarding", async () => {
+    const cloudProfile = { ...TEST_PROFILE, name: "Ana nube" };
+    stubAuthServer({ id: "g1", email: "ana@example.com", name: "Ana" }, [
+      {
+        store: "profile",
+        key: "me",
+        updatedAt: "2026-11-01T00:00:00.000Z",
+        deleted: false,
+        data: JSON.stringify(cloudProfile),
+      },
+    ]);
+    renderApp();
+    expect(
+      await screen.findByRole("navigation", { name: "Navegación principal" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/PASO 1\/4/)).not.toBeInTheDocument();
+  });
+
+  it("al entrar con una cuenta nueva sigue al onboarding", async () => {
+    stubAuthServer({ id: "g2", email: "bea@example.com", name: "Bea" });
+    renderApp();
+    expect(await screen.findByText(/PASO 1\/4/)).toBeInTheDocument();
   });
 
   it("Perfil ofrece entrar con Google si el servidor tiene login", async () => {
