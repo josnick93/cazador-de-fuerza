@@ -48,6 +48,8 @@ import type {
 } from "@/types";
 
 const RIR_OPTIONS = [0, 1, 2, 3, 4] as const;
+/** Tiempo que se cuenta tras la última serie al terminar. */
+const FINISH_GRACE_SEC = 180;
 
 const PROGRESSION_META: Record<
   ProgressionNote["decision"],
@@ -98,9 +100,25 @@ export function EntrenoActivoPage() {
 
   // Cronómetro y descanso por marcas de tiempo: siguen corriendo aunque salgas de la pantalla.
   const [startedAt] = useState(() => draft?.startedAt ?? Date.now());
+  // El cronómetro arranca con la primera serie (incluido calentamiento): abrir el entreno para mirarlo
+  // horas antes no cuenta. Borradores antiguos sin este dato: desde que se abrió si ya había series.
+  const [firstSetAt, setFirstSetAt] = useState<number | null>(() =>
+    draft
+      ? (draft.firstSetAt ??
+        (Object.values(draft.setsByExercise).some((l) => l.some((r) => r.completed))
+          ? draft.startedAt
+          : null))
+      : null,
+  );
+  const [lastSetAt, setLastSetAt] = useState<number | null>(() => draft?.lastSetAt ?? null);
+  const markActivity = () => {
+    const t = Date.now();
+    setFirstSetAt((prev) => prev ?? t);
+    setLastSetAt(t);
+  };
   const [restEndsAt, setRestEndsAt] = useState<number | null>(() => draft?.restEndsAt ?? null);
   const [now, setNow] = useState(() => Date.now());
-  const elapsedSeconds = Math.max(0, Math.floor((now - startedAt) / 1000));
+  const elapsedSeconds = firstSetAt ? Math.max(0, Math.floor((now - firstSetAt) / 1000)) : 0;
   const restSeconds = restEndsAt ? Math.max(0, Math.ceil((restEndsAt - now) / 1000)) : 0;
   const setRestSeconds = (seconds: number) =>
     setRestEndsAt(seconds > 0 ? Date.now() + seconds * 1000 : null);
@@ -137,6 +155,8 @@ export function EntrenoActivoPage() {
       currentIdx,
       setsByExercise,
       startedAt,
+      firstSetAt,
+      lastSetAt,
       restEndsAt,
       warmupDone,
     });
@@ -147,6 +167,8 @@ export function EntrenoActivoPage() {
     currentIdx,
     setsByExercise,
     startedAt,
+    firstSetAt,
+    lastSetAt,
     restEndsAt,
     warmupDone,
   ]);
@@ -167,6 +189,7 @@ export function EntrenoActivoPage() {
         : [...(prev[currentIdx] ?? []), i],
     }));
     if (!done) {
+      markActivity();
       unlockRestAlert();
       setRestSeconds(60);
     }
@@ -196,6 +219,7 @@ export function EntrenoActivoPage() {
     }));
 
     if (nowCompleted) {
+      markActivity();
       unlockRestAlert();
       setRestSeconds(currentExercise.defaultRestSec);
     }
@@ -224,7 +248,10 @@ export function EntrenoActivoPage() {
   };
 
   const finishWorkout = () => {
-    const durationSeconds = Math.max(elapsedSeconds, 60);
+    // Si se pulsa «Terminar» mucho después de la última serie (se olvidó), ese hueco no cuenta.
+    const activeSeconds =
+      firstSetAt && lastSetAt ? Math.floor((lastSetAt - firstSetAt) / 1000) + FINISH_GRACE_SEC : 0;
+    const durationSeconds = Math.max(Math.min(elapsedSeconds, activeSeconds), 60);
     const exercises = workout.exercises.map((planned, idx) => ({
       exerciseId: plannedList[idx]?.exerciseId ?? planned.exerciseId,
       plannedExerciseId: planned.exerciseId,
