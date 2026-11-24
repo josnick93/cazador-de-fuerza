@@ -112,6 +112,13 @@ Leer ese código antes de diseñar nada. Secretos con `wrangler secret`, nunca e
       `COACH_WEEKLY_LIMIT`). Sin límite para los correos del secret `COACH_UNLIMITED_EMAILS` (separados por comas).
       Pendiente: «Premium ilimitado» cuando haya pagos (el `isPremium` del perfil lo controla la app, no es fiable).
 
+### Extra — Social
+- [x] Amigos (`/api/friends`, `worker/friends.ts`, resúmenes deterministas en `engine/social.ts`): código de invitación
+      por usuario (`fuerza_friend_codes`) y amistades en los dos sentidos (`fuerza_friends`, triggers de borrado sobre
+      `users`). Enlace `/?amigo=CODIGO`: se guarda en local y se acepta tras el login/onboarding. Pestaña «Amigos»:
+      clasificación semanal por XP (lunes-domingo UTC), racha, total SBD, marcas y actividad. Sin ranking global ni
+      buscador; nunca se comparte correo, peso corporal ni nutrición.
+
 ### Fase 5 — Distribución y monetización
 - [ ] PWA (manifest, service worker, icono) para que los amigos la instalen sin store.
 - [ ] Premium con Stripe (web). Anuncios solo en pantalla de resumen post-entreno; nunca durante el entreno.

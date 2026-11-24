@@ -1,11 +1,12 @@
 import type { ReactNode } from "react";
-import { BarChart3, BookOpen, Bot, CalendarRange, Dumbbell, Shield } from "lucide-react";
+import { BarChart3, BookOpen, Bot, CalendarRange, Dumbbell, Shield, Users } from "lucide-react";
 import { useApp, type MainTab } from "./AppContext";
 
 const TABS: { id: MainTab; label: string; icon: typeof Dumbbell }[] = [
   { id: "hoy", label: "Hoy", icon: Dumbbell },
   { id: "progreso", label: "Progreso", icon: BarChart3 },
   { id: "plan", label: "Plan", icon: CalendarRange },
+  { id: "amigos", label: "Amigos", icon: Users },
   { id: "biblioteca", label: "Biblioteca", icon: BookOpen },
   { id: "coach", label: "Coach", icon: Bot },
 ];
@@ -65,7 +66,7 @@ export function MobileLayout({ children }: { children: ReactNode }) {
             aria-label="Navegación principal"
             className="fixed bottom-0 left-1/2 z-40 w-full max-w-[390px] -translate-x-1/2 border-t border-border/80 bg-card/95 px-2 py-2 backdrop-blur-md"
           >
-            <div className="grid grid-cols-5 gap-1">
+            <div className="grid grid-cols-6 gap-0.5">
               {TABS.map(({ id, label, icon: Icon }) => {
                 const active = view === id;
                 return (
@@ -73,7 +74,7 @@ export function MobileLayout({ children }: { children: ReactNode }) {
                     key={id}
                     type="button"
                     onClick={() => setView(id)}
-                    className={`flex min-h-[52px] flex-col items-center justify-center gap-1 rounded-xl px-1 py-1.5 text-[11px] font-medium transition-all ${
+                    className={`flex min-h-[52px] flex-col items-center justify-center gap-1 rounded-xl px-0.5 py-1.5 text-[11px] font-medium transition-all ${
                       active
                         ? "bg-primary/15 text-primary ring-1 ring-primary/40"
                         : "text-muted-foreground hover:text-foreground"

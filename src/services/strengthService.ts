@@ -598,3 +598,8 @@ export function resetLocalData(): void {
   Object.values(STORAGE_KEYS).forEach(removeKey);
   resetSyncMeta();
 }
+
+/** «Hoy», «Ayer», «Hace 3 días»… */
+export function relativeDay(iso: string): string {
+  return relativeDayLabel(iso);
+}

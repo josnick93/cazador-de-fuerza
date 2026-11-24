@@ -4,9 +4,11 @@
  * - /api/sync: sincronización de los datos del usuario (ver sync.ts).
  * - /api/nutrition: lectura de los datos de MacroQuest de la cuenta (ver nutrition.ts).
  * - /api/coach: coach IA con la API de Claude (ver coach.ts).
+ * - /api/friends: amigos por código de invitación y su progreso (ver friends.ts).
  */
 import { handleAuth } from "./auth";
 import { handleCoach, type CoachEnv } from "./coach";
+import { handleFriends } from "./friends";
 import { json } from "./http";
 import { handleNutrition } from "./nutrition";
 import { handleSync } from "./sync";
@@ -43,6 +45,14 @@ export async function handleApi(request: Request, env: ApiEnv): Promise<Response
     } catch (e) {
       console.error("coach", e);
       return json({ error: "Error del coach" }, 500);
+    }
+  }
+  if (pathname === "/api/friends") {
+    try {
+      return await handleFriends(request, env);
+    } catch (e) {
+      console.error("friends", e);
+      return json({ error: "Error al cargar los amigos" }, 500);
     }
   }
   if (pathname === "/api/nutrition") {
