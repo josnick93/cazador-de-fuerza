@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft,
   ArrowRight,
@@ -7,6 +7,7 @@ import {
   Check,
   Info,
   Equal,
+  Flame,
   Minus,
   Plus,
   RefreshCw,
@@ -26,10 +27,13 @@ import {
   getExerciseById,
   getAlternatives,
   completeWorkout,
+  getSessionWarmups,
   getTodayWorkout,
   substituteExercise,
 } from "@/services/strengthService";
 import { parseRepRange } from "@/engine/progression";
+import { useWakeLock } from "@/hooks/useWakeLock";
+import { playRestAlert, unlockRestAlert } from "@/lib/restAlert";
 import {
   clearWorkoutDraft,
   getWorkoutDraft,
@@ -44,6 +48,8 @@ import type {
 } from "@/types";
 
 const RIR_OPTIONS = [0, 1, 2, 3, 4] as const;
+/** Tiempo que se cuenta tras la última serie al terminar. */
+const FINISH_GRACE_SEC = 180;
 
 const PROGRESSION_META: Record<
   ProgressionNote["decision"],
@@ -94,12 +100,33 @@ export function EntrenoActivoPage() {
 
   // Cronómetro y descanso por marcas de tiempo: siguen corriendo aunque salgas de la pantalla.
   const [startedAt] = useState(() => draft?.startedAt ?? Date.now());
+  // El cronómetro arranca con la primera serie (incluido calentamiento): abrir el entreno para mirarlo
+  // horas antes no cuenta. Borradores antiguos sin este dato: desde que se abrió si ya había series.
+  const [firstSetAt, setFirstSetAt] = useState<number | null>(() =>
+    draft
+      ? (draft.firstSetAt ??
+        (Object.values(draft.setsByExercise).some((l) => l.some((r) => r.completed))
+          ? draft.startedAt
+          : null))
+      : null,
+  );
+  const [lastSetAt, setLastSetAt] = useState<number | null>(() => draft?.lastSetAt ?? null);
+  const markActivity = () => {
+    const t = Date.now();
+    setFirstSetAt((prev) => prev ?? t);
+    setLastSetAt(t);
+  };
   const [restEndsAt, setRestEndsAt] = useState<number | null>(() => draft?.restEndsAt ?? null);
   const [now, setNow] = useState(() => Date.now());
-  const elapsedSeconds = Math.max(0, Math.floor((now - startedAt) / 1000));
+  const elapsedSeconds = firstSetAt ? Math.max(0, Math.floor((now - firstSetAt) / 1000)) : 0;
   const restSeconds = restEndsAt ? Math.max(0, Math.ceil((restEndsAt - now) / 1000)) : 0;
   const setRestSeconds = (seconds: number) =>
     setRestEndsAt(seconds > 0 ? Date.now() + seconds * 1000 : null);
+  // Series de aproximación hechas por ejercicio (índices). Solo guía: no se registran.
+  const warmups = useMemo(() => getSessionWarmups(plannedList), [plannedList]);
+  const [warmupDone, setWarmupDone] = useState<Record<number, number[]>>(
+    () => draft?.warmupDone ?? {},
+  );
   const [showSwapModal, setShowSwapModal] = useState(false);
   const [guideId, setGuideId] = useState<string | null>(null);
   const [summary, setSummary] = useState<WorkoutSummary | null>(null);
@@ -110,6 +137,16 @@ export function EntrenoActivoPage() {
     return () => window.clearInterval(interval);
   }, [summary]);
 
+  // Pantalla siempre encendida durante el entreno.
+  useWakeLock(!summary);
+
+  // Fin del descanso: aviso (si acaba de terminar, no al retomar un borrador antiguo) y se cierra la barra.
+  useEffect(() => {
+    if (restEndsAt === null || now < restEndsAt) return;
+    if (now - restEndsAt < 5000) playRestAlert();
+    setRestEndsAt(null);
+  }, [now, restEndsAt]);
+
   useEffect(() => {
     if (summary) return;
     saveWorkoutDraft({
@@ -118,14 +155,45 @@ export function EntrenoActivoPage() {
       currentIdx,
       setsByExercise,
       startedAt,
+      firstSetAt,
+      lastSetAt,
       restEndsAt,
+      warmupDone,
     });
-  }, [summary, workout.id, plannedList, currentIdx, setsByExercise, startedAt, restEndsAt]);
+  }, [
+    summary,
+    workout.id,
+    plannedList,
+    currentIdx,
+    setsByExercise,
+    startedAt,
+    firstSetAt,
+    lastSetAt,
+    restEndsAt,
+    warmupDone,
+  ]);
 
   const originalPlanned = workout.exercises[currentIdx];
   const currentPlanned = plannedList[currentIdx];
   const currentExercise = currentPlanned ? getExerciseById(currentPlanned.exerciseId) : undefined;
   const currentSets = setsByExercise[currentIdx] ?? [];
+  const currentWarmups = warmups[currentIdx] ?? [];
+  const currentWarmupDone = warmupDone[currentIdx] ?? [];
+
+  const toggleWarmup = (i: number) => {
+    const done = currentWarmupDone.includes(i);
+    setWarmupDone((prev) => ({
+      ...prev,
+      [currentIdx]: done
+        ? (prev[currentIdx] ?? []).filter((x) => x !== i)
+        : [...(prev[currentIdx] ?? []), i],
+    }));
+    if (!done) {
+      markActivity();
+      unlockRestAlert();
+      setRestSeconds(60);
+    }
+  };
 
   const updateSet = (setIdx: number, updater: (row: ActiveSetRow) => ActiveSetRow) => {
     setSetsByExercise((prev) => {
@@ -151,6 +219,8 @@ export function EntrenoActivoPage() {
     }));
 
     if (nowCompleted) {
+      markActivity();
+      unlockRestAlert();
       setRestSeconds(currentExercise.defaultRestSec);
     }
   };
@@ -178,7 +248,10 @@ export function EntrenoActivoPage() {
   };
 
   const finishWorkout = () => {
-    const durationSeconds = Math.max(elapsedSeconds, 60);
+    // Si se pulsa «Terminar» mucho después de la última serie (se olvidó), ese hueco no cuenta.
+    const activeSeconds =
+      firstSetAt && lastSetAt ? Math.floor((lastSetAt - firstSetAt) / 1000) + FINISH_GRACE_SEC : 0;
+    const durationSeconds = Math.max(Math.min(elapsedSeconds, activeSeconds), 60);
     const exercises = workout.exercises.map((planned, idx) => ({
       exerciseId: plannedList[idx]?.exerciseId ?? planned.exerciseId,
       plannedExerciseId: planned.exerciseId,
@@ -420,6 +493,56 @@ export function EntrenoActivoPage() {
             </button>
           </div>
         </section>
+
+        {currentWarmups.length > 0 && (
+          <section
+            aria-label="Calentamiento"
+            className="rounded-2xl border border-gold/30 bg-gold/5 p-3.5"
+          >
+            <div className="mb-2 flex items-center justify-between">
+              <span className="flex items-center gap-1.5 font-display text-sm font-bold text-gold">
+                <Flame className="h-4 w-4" />
+                CALENTAMIENTO
+              </span>
+              <span className="text-xs text-muted-foreground">No cuenta para el progreso</span>
+            </div>
+            <ul className="space-y-2">
+              {currentWarmups.map((w, i) => {
+                const done = currentWarmupDone.includes(i);
+                return (
+                  <li key={`${w.kg}-${w.reps}`}>
+                    <button
+                      type="button"
+                      onClick={() => toggleWarmup(i)}
+                      aria-pressed={done}
+                      className={`flex min-h-[48px] w-full items-center gap-3 rounded-xl border px-3 text-left text-sm font-semibold transition-colors active:scale-[0.98] ${
+                        done
+                          ? "border-success/50 bg-success/10 text-muted-foreground"
+                          : "border-border bg-surface text-foreground"
+                      }`}
+                    >
+                      <span
+                        className={`grid h-7 w-7 shrink-0 place-items-center rounded-md border ${
+                          done
+                            ? "border-success bg-success text-success-foreground"
+                            : "border-border text-muted-foreground"
+                        }`}
+                      >
+                        {done ? <Check className="h-4 w-4" /> : i + 1}
+                      </span>
+                      <span className="tabular-nums-display flex-1 text-base">
+                        {formatWeight(w.kg, profile.unit)} × {w.reps}
+                      </span>
+                      {i === 0 && w.kg === 20 && (
+                        <span className="text-xs text-muted-foreground">Barra vacía</span>
+                      )}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+        )}
 
         <section className="space-y-3">
           {currentSets.map((row, idx) => (

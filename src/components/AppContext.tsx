@@ -15,6 +15,7 @@ import {
 } from "@/services/authService";
 import { getDefaultProfile, getUserProfile, saveUserProfile } from "@/services/strengthService";
 import { fetchNutrition, getCachedNutrition } from "@/services/nutritionService";
+import { consumeInviteFromUrl, getPendingInvite } from "@/services/friendsService";
 import {
   adoptAccount,
   getLastSyncAt,
@@ -32,7 +33,7 @@ const SKIP_LOGIN_KEY = "ironquest_skip_login_v1";
 /** Espera tras un cambio local antes de subirlo (agrupa varios guardados seguidos). */
 const SYNC_DEBOUNCE_MS = 2500;
 
-export type MainTab = "hoy" | "progreso" | "plan" | "biblioteca" | "coach";
+export type MainTab = "hoy" | "progreso" | "plan" | "amigos" | "biblioteca" | "coach";
 export type AppView = MainTab | "entreno" | "perfil" | "onboarding";
 
 interface AppContextValue {
@@ -152,6 +153,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
     };
   }, [userId, syncData]);
 
+  // Invitación de un amigo pendiente: en cuanto hay sesión y perfil, se abre Amigos (que la acepta).
+  const onboarded = profile.onboardingCompleted;
+  useEffect(() => {
+    if (userId && onboarded && getPendingInvite()) setView("amigos");
+  }, [userId, onboarded]);
+
   const adoptAccountData = () => {
     if (!userId) return;
     adoptAccount(userId);
@@ -165,6 +172,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setProfile(saved);
     setLoginSkipped(readJson<boolean>(SKIP_LOGIN_KEY, false));
     setHydrated(true);
+    consumeInviteFromUrl();
     const result = consumeLoginResult();
     if (result) {
       setLoginResult(result);

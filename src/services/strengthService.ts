@@ -11,6 +11,7 @@ import {
 } from "@/engine/progression";
 import { addXp, sessionXp } from "@/engine/xp";
 import { findAlternatives, substitutePlannedExercise } from "@/engine/substitution";
+import { sessionWarmups, type WarmupSet } from "@/engine/warmup";
 import {
   computeVerdict,
   fallbackMacroGoal,
@@ -157,6 +158,13 @@ export function getExerciseThumbnail(exerciseId: string): string | null {
 }
 
 /** Sustituye el ejercicio planificado recalculando la carga para el nuevo. */
+/** Series de aproximación de cada ejercicio de la sesión (vacío si no tocan). */
+export function getSessionWarmups(planned: PlannedExercise[]): WarmupSet[][] {
+  return sessionWarmups(
+    planned.map((p) => ({ exercise: getExerciseById(p.exerciseId), workKg: p.targetKg })),
+  );
+}
+
 export function substituteExercise(
   planned: PlannedExercise,
   toExerciseId: string,
@@ -589,4 +597,9 @@ export function applyPlanProposal(proposal: PlanProposal): PlanAdjustResult {
 export function resetLocalData(): void {
   Object.values(STORAGE_KEYS).forEach(removeKey);
   resetSyncMeta();
+}
+
+/** «Hoy», «Ayer», «Hace 3 días»… */
+export function relativeDay(iso: string): string {
+  return relativeDayLabel(iso);
 }

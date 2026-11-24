@@ -78,6 +78,23 @@ const FUERZA_SCHEMA = [
    BEGIN
      DELETE FROM fuerza_coach_usage WHERE user_id = OLD.id;
    END`,
+  // Amigos: código de invitación por usuario y amistades guardadas en los dos sentidos.
+  `CREATE TABLE IF NOT EXISTS fuerza_friend_codes (
+    user_id TEXT PRIMARY KEY,
+    code TEXT NOT NULL UNIQUE,
+    created_at TEXT NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS fuerza_friends (
+    user_id TEXT NOT NULL,
+    friend_id TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (user_id, friend_id)
+  )`,
+  `CREATE TRIGGER IF NOT EXISTS fuerza_friends_delete_user AFTER DELETE ON users
+   BEGIN
+     DELETE FROM fuerza_friend_codes WHERE user_id = OLD.id;
+     DELETE FROM fuerza_friends WHERE user_id = OLD.id OR friend_id = OLD.id;
+   END`,
 ];
 
 export async function coachUsage(db: Database, userId: string, week: string): Promise<number> {
@@ -197,4 +214,104 @@ export async function changesSince(
     .bind(userId, cursor, limit)
     .all<Omit<StoredChange, "deleted"> & { deleted: number }>();
   return results.map((r) => ({ ...r, deleted: r.deleted === 1 }));
+}
+
+export async function getFriendCode(db: Database, userId: string): Promise<string | null> {
+  const row = await db
+    .prepare(`SELECT code FROM fuerza_friend_codes WHERE user_id = ?1`)
+    .bind(userId)
+    .first<{ code: string }>();
+  return row?.code ?? null;
+}
+
+/** Guarda (o sustituye) el código del usuario. Falla si otro usuario ya tiene ese código. */
+export async function setFriendCode(
+  db: Database,
+  userId: string,
+  code: string,
+  now: string,
+): Promise<void> {
+  await db
+    .prepare(
+      `INSERT INTO fuerza_friend_codes (user_id, code, created_at) VALUES (?1, ?2, ?3)
+       ON CONFLICT (user_id) DO UPDATE SET code = excluded.code, created_at = excluded.created_at`,
+    )
+    .bind(userId, code, now)
+    .run();
+}
+
+export async function userByFriendCode(db: Database, code: string): Promise<string | null> {
+  const row = await db
+    .prepare(`SELECT user_id AS userId FROM fuerza_friend_codes WHERE code = ?1`)
+    .bind(code)
+    .first<{ userId: string }>();
+  return row?.userId ?? null;
+}
+
+export async function friendIds(db: Database, userId: string): Promise<string[]> {
+  const { results } = await db
+    .prepare(`SELECT friend_id AS id FROM fuerza_friends WHERE user_id = ?1 ORDER BY created_at`)
+    .bind(userId)
+    .all<{ id: string }>();
+  return results.map((r) => r.id);
+}
+
+export async function addFriendship(
+  db: Database,
+  a: string,
+  b: string,
+  now: string,
+): Promise<void> {
+  await db
+    .prepare(
+      `INSERT OR IGNORE INTO fuerza_friends (user_id, friend_id, created_at) VALUES (?1, ?2, ?3), (?2, ?1, ?3)`,
+    )
+    .bind(a, b, now)
+    .run();
+}
+
+export async function removeFriendship(db: Database, a: string, b: string): Promise<void> {
+  await db
+    .prepare(
+      `DELETE FROM fuerza_friends WHERE (user_id = ?1 AND friend_id = ?2) OR (user_id = ?2 AND friend_id = ?1)`,
+    )
+    .bind(a, b)
+    .run();
+}
+
+export interface AthleteRow {
+  userId: string;
+  store: "profile" | "workouts";
+  data: string;
+}
+
+/** Perfil y entrenos desde `since` de varios usuarios, en una sola consulta. */
+export async function athletesRecords(
+  db: Database,
+  userIds: string[],
+  since: string,
+): Promise<AthleteRow[]> {
+  if (userIds.length === 0) return [];
+  const { results } = await db
+    .prepare(
+      `SELECT user_id AS userId, store, data FROM fuerza_records
+       WHERE user_id IN (SELECT value FROM json_each(?1)) AND deleted = 0 AND data IS NOT NULL
+         AND ((store = 'profile' AND key = 'me')
+           OR (store = 'workouts' AND json_extract(data, '$.completedAt') >= ?2))`,
+    )
+    .bind(JSON.stringify(userIds), since)
+    .all<AthleteRow>();
+  return results;
+}
+
+export async function userNames(
+  db: Database,
+  userIds: string[],
+): Promise<Map<string, string | null>> {
+  if (userIds.length === 0) return new Map();
+  const { results } = await db
+    .prepare(`SELECT id, name FROM users WHERE id IN (SELECT value FROM json_each(?1))`)
+    .bind(JSON.stringify(userIds))
+    .all<{ id: string; name: string | null }>();
+  return new Map(results.map((r) => [r.id, r.name]));
 }

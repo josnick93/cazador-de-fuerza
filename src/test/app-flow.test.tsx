@@ -25,6 +25,7 @@ function stubAuthServer(
   syncChanges: unknown[] = [],
 ) {
   let current = user;
+  let friendsAdded = false;
   const calls: string[] = [];
   vi.stubGlobal(
     "fetch",
@@ -67,6 +68,31 @@ function stubAuthServer(
               remaining: 2,
             })
           : Response.json({ reply: `Coach: ${body.message}`, remaining: 1 });
+      }
+      if (url === "/api/friends") {
+        const athlete = (id: string, name: string, weekXp: number) => ({
+          id,
+          name,
+          rank: "Rango D",
+          level: 4,
+          weekWorkouts: weekXp > 0 ? 1 : 0,
+          weekXp,
+          weekPrs: 0,
+          streakWeeks: 2,
+          lifts: [{ id: "ex-banca-barra", label: "Banca", e1rm: 90 }],
+          total: null,
+          lastWorkoutAt: null,
+        });
+        if (init?.method === "POST") {
+          friendsAdded = true;
+          return Response.json({ friend: athlete("g2", "Bea", 300) });
+        }
+        return Response.json({
+          code: "ABC234",
+          me: athlete("g1", "Ana", 100),
+          friends: friendsAdded ? [athlete("g2", "Bea", 300)] : [],
+          feed: [],
+        });
       }
       if (url === "/api/nutrition") {
         return Response.json({ connected: false, goal: null, days: [], weights: [] });
@@ -412,6 +438,30 @@ describe("Flujo de la app", () => {
     renderApp();
     expect(await screen.findByText(/Sesión iniciada/)).toBeInTheDocument();
     expect(window.location.search).toBe("");
+  });
+
+  it("un enlace de invitación abre Amigos, acepta al amigo y lo pone en la clasificación", async () => {
+    const calls = stubAuthServer({ id: "g1", email: "ana@example.com", name: "Ana" });
+    window.history.pushState(null, "", "/?amigo=xyz789");
+    seedProfile();
+    renderApp();
+    expect(await screen.findByText("¡Bea ya está en tu gremio!")).toBeInTheDocument();
+    expect(window.location.search).toBe("");
+    expect(calls).toContain("POST /api/friends");
+    // Bea (más XP) va primera y queda desplegada; Ana (tú) segunda.
+    const bea = await screen.findByRole("button", { expanded: true });
+    expect(bea).toHaveTextContent(/^1Bea/);
+    expect(screen.getByRole("button", { expanded: false, name: /Ana/ })).toHaveTextContent(/^2/);
+    expect(screen.getByText("ABC234")).toBeInTheDocument();
+  });
+
+  it("sin sesión, Amigos invita a entrar", () => {
+    seedProfile();
+    renderApp();
+    fireEvent.click(nav().getByRole("button", { name: "Amigos" }));
+    expect(
+      screen.getByRole("button", { name: /Entrar para ver a tus amigos/ }),
+    ).toBeInTheDocument();
   });
 
   it("Perfil cambia unidades y permite rehacer el onboarding", () => {

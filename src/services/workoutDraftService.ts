@@ -13,10 +13,15 @@ export interface WorkoutDraft {
   plannedList: PlannedExercise[];
   currentIdx: number;
   setsByExercise: Record<number, ActiveSetRow[]>;
-  /** Inicio del entreno (ms): el cronómetro sigue contando aunque salgas. */
+  /** Cuándo se abrió el entreno (ms): solo para descartar borradores viejos. */
   startedAt: number;
+  /** Primera y última serie marcadas (ms). El cronómetro cuenta desde la primera, no desde que se abre. */
+  firstSetAt?: number | null;
+  lastSetAt?: number | null;
   /** Fin del descanso en curso (ms) o null. */
   restEndsAt: number | null;
+  /** Series de calentamiento marcadas por ejercicio (índices). */
+  warmupDone?: Record<number, number[]>;
 }
 
 export function getWorkoutDraft(workoutId: string, now = Date.now()): WorkoutDraft | null {
