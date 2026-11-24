@@ -20,6 +20,7 @@ import { useApp } from "@/components/AppContext";
 import { ExerciseGuideSheet } from "@/components/ExerciseGuideSheet";
 import { ExerciseThumb } from "@/components/ExerciseThumb";
 import { RestTimerBar } from "@/components/RestTimerBar";
+import { RIR_HINTS, RirHelpSheet } from "@/components/RirHelpSheet";
 import {
   calculateE1rm,
   formatWeight,
@@ -128,6 +129,7 @@ export function EntrenoActivoPage() {
     () => draft?.warmupDone ?? {},
   );
   const [showSwapModal, setShowSwapModal] = useState(false);
+  const [showRirHelp, setShowRirHelp] = useState(false);
   const [guideId, setGuideId] = useState<string | null>(null);
   const [summary, setSummary] = useState<WorkoutSummary | null>(null);
 
@@ -626,28 +628,50 @@ export function EntrenoActivoPage() {
               </div>
 
               <div className="mt-3">
-                <p className="mb-1.5 text-[11px] font-semibold uppercase text-muted-foreground">
-                  RIR (Reps en reserva)
-                </p>
+                <div className="mb-1 flex items-center justify-between gap-2">
+                  <p className="text-[11px] font-semibold uppercase text-muted-foreground">
+                    RIR · reps que te quedaban
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setShowRirHelp(true)}
+                    className="-my-2 flex min-h-[48px] items-center gap-1 px-1 text-xs font-semibold text-primary"
+                  >
+                    <Info className="h-3.5 w-3.5" />
+                    ¿Qué es?
+                  </button>
+                </div>
                 <div className="grid grid-cols-5 gap-1.5">
                   {RIR_OPTIONS.map((rirVal) => {
                     const active = row.rir === rirVal;
+                    const isTarget = currentPlanned.targetRir === rirVal;
                     return (
                       <button
                         key={rirVal}
                         type="button"
                         onClick={() => updateSet(idx, (r) => ({ ...r, rir: rirVal }))}
-                        className={`min-h-[48px] rounded-xl border font-display text-sm font-bold transition-colors ${
+                        aria-label={`RIR ${rirVal === 4 ? "4 o más" : rirVal}${isTarget ? " (objetivo)" : ""}`}
+                        className={`flex min-h-[48px] flex-col items-center justify-center rounded-xl border font-display text-sm font-bold leading-none transition-colors ${
                           active
                             ? "border-primary bg-primary/20 text-primary"
                             : "border-border bg-surface text-muted-foreground"
                         }`}
                       >
                         {rirVal === 4 ? "4+" : rirVal}
+                        {isTarget && (
+                          <span className="mt-1 text-[9px] font-semibold uppercase tracking-wide">
+                            objetivo
+                          </span>
+                        )}
                       </button>
                     );
                   })}
                 </div>
+                <p className="mt-1.5 text-xs text-muted-foreground">
+                  {row.completed
+                    ? RIR_HINTS[row.rir]
+                    : `${RIR_HINTS[row.rir]} Marca lo que te quedó de verdad.`}
+                </p>
               </div>
 
               <button
@@ -777,6 +801,10 @@ export function EntrenoActivoPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {showRirHelp && (
+        <RirHelpSheet targetRir={currentPlanned.targetRir} onClose={() => setShowRirHelp(false)} />
       )}
 
       {guideId && (
