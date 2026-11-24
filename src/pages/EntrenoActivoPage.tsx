@@ -20,7 +20,8 @@ import { useApp } from "@/components/AppContext";
 import { ExerciseGuideSheet } from "@/components/ExerciseGuideSheet";
 import { ExerciseThumb } from "@/components/ExerciseThumb";
 import { RestTimerBar } from "@/components/RestTimerBar";
-import { RIR_HINTS, RirHelpSheet } from "@/components/RirHelpSheet";
+import { RirHelpSheet } from "@/components/RirHelpSheet";
+import { RIR_HINTS } from "@/lib/rir";
 import {
   calculateE1rm,
   formatWeight,
