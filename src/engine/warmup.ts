@@ -4,25 +4,14 @@
  * los siguientes ejercicios de ese músculo ya llegan calientes.
  */
 import type { Exercise } from "@/types";
+import { barKgFor, OLYMPIC_BAR_KG } from "./plates";
 
 export interface WarmupSet {
   kg: number;
   reps: number;
 }
 
-export const BAR_KG = 20;
-
-/** Ejercicios con barra olímpica: empiezan con la barra vacía. */
-const BARBELL_IDS = new Set([
-  "ex-sentadilla",
-  "ex-sentadilla-frontal",
-  "ex-peso-muerto",
-  "ex-peso-muerto-rumano",
-  "ex-banca-barra",
-  "ex-press-inclinado",
-  "ex-press-militar",
-  "ex-remo-barra",
-]);
+export const BAR_KG = OLYMPIC_BAR_KG;
 
 const BARBELL_STEPS = [
   { pct: 0.4, reps: 8 },
@@ -45,7 +34,8 @@ export function needsWarmup(exercise: Exercise): boolean {
 
 export function warmupSets(exercise: Exercise, workKg: number): WarmupSet[] {
   if (!needsWarmup(exercise) || workKg < MIN_WORK_KG) return [];
-  const barbell = BARBELL_IDS.has(exercise.id);
+  // Con barra olímpica se empieza con la barra vacía.
+  const barbell = barKgFor(exercise.id) === OLYMPIC_BAR_KG;
   const sets: WarmupSet[] = barbell && workKg > BAR_KG ? [{ kg: BAR_KG, reps: 10 }] : [];
   for (const step of barbell ? BARBELL_STEPS : OTHER_STEPS) {
     const kg = round(workKg * step.pct);

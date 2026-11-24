@@ -12,6 +12,7 @@ import {
 import { addXp, sessionXp } from "@/engine/xp";
 import { findAlternatives, substitutePlannedExercise } from "@/engine/substitution";
 import { sessionWarmups, type WarmupSet } from "@/engine/warmup";
+import { barKgFor, plateLoad, type PlateLoad } from "@/engine/plates";
 import {
   computeVerdict,
   fallbackMacroGoal,
@@ -602,4 +603,10 @@ export function resetLocalData(): void {
 /** «Hoy», «Ayer», «Hace 3 días»… */
 export function relativeDay(iso: string): string {
   return relativeDayLabel(iso);
+}
+
+/** Discos por lado para el peso total, o null si el ejercicio no va con barra o pesa menos que la barra. */
+export function getPlateLoad(exerciseId: string, totalKg: number): PlateLoad | null {
+  const bar = barKgFor(exerciseId);
+  return bar === null ? null : plateLoad(totalKg, bar);
 }

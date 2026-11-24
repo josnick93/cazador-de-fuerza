@@ -19,6 +19,7 @@ import {
 import { useApp } from "@/components/AppContext";
 import { ExerciseGuideSheet } from "@/components/ExerciseGuideSheet";
 import { ExerciseThumb } from "@/components/ExerciseThumb";
+import { PlateLoadBar } from "@/components/PlateLoadBar";
 import { RestTimerBar } from "@/components/RestTimerBar";
 import { RirHelpSheet } from "@/components/RirHelpSheet";
 import { RIR_HINTS } from "@/lib/rir";
@@ -29,6 +30,7 @@ import {
   getExerciseById,
   getAlternatives,
   completeWorkout,
+  getPlateLoad,
   getSessionWarmups,
   getTodayWorkout,
   substituteExercise,
@@ -536,9 +538,11 @@ export function EntrenoActivoPage() {
                       <span className="tabular-nums-display flex-1 text-base">
                         {formatWeight(w.kg, profile.unit)} × {w.reps}
                       </span>
-                      {i === 0 && w.kg === 20 && (
-                        <span className="text-xs text-muted-foreground">Barra vacía</span>
-                      )}
+                      {(() => {
+                        const load =
+                          profile.unit === "kg" ? getPlateLoad(currentExercise.id, w.kg) : null;
+                        return load ? <PlateLoadBar load={load} compact /> : null;
+                      })()}
                     </button>
                   </li>
                 );
@@ -627,6 +631,13 @@ export function EntrenoActivoPage() {
                   </div>
                 </div>
               </div>
+
+              {(() => {
+                // Discos por lado (solo con barra y en kg: las máquinas van por peso total).
+                const load =
+                  profile.unit === "kg" ? getPlateLoad(currentExercise.id, row.kg) : null;
+                return load ? <PlateLoadBar load={load} /> : null;
+              })()}
 
               <div className="mt-3">
                 <div className="mb-1 flex items-center justify-between gap-2">
