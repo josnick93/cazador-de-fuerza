@@ -17,6 +17,8 @@ export interface WorkoutDraft {
   startedAt: number;
   /** Fin del descanso en curso (ms) o null. */
   restEndsAt: number | null;
+  /** Series de calentamiento marcadas por ejercicio (índices). */
+  warmupDone?: Record<number, number[]>;
 }
 
 export function getWorkoutDraft(workoutId: string, now = Date.now()): WorkoutDraft | null {

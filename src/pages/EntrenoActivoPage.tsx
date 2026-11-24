@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft,
   ArrowRight,
@@ -7,6 +7,7 @@ import {
   Check,
   Info,
   Equal,
+  Flame,
   Minus,
   Plus,
   RefreshCw,
@@ -26,10 +27,13 @@ import {
   getExerciseById,
   getAlternatives,
   completeWorkout,
+  getSessionWarmups,
   getTodayWorkout,
   substituteExercise,
 } from "@/services/strengthService";
 import { parseRepRange } from "@/engine/progression";
+import { useWakeLock } from "@/hooks/useWakeLock";
+import { playRestAlert, unlockRestAlert } from "@/lib/restAlert";
 import {
   clearWorkoutDraft,
   getWorkoutDraft,
@@ -100,6 +104,11 @@ export function EntrenoActivoPage() {
   const restSeconds = restEndsAt ? Math.max(0, Math.ceil((restEndsAt - now) / 1000)) : 0;
   const setRestSeconds = (seconds: number) =>
     setRestEndsAt(seconds > 0 ? Date.now() + seconds * 1000 : null);
+  // Series de aproximación hechas por ejercicio (índices). Solo guía: no se registran.
+  const warmups = useMemo(() => getSessionWarmups(plannedList), [plannedList]);
+  const [warmupDone, setWarmupDone] = useState<Record<number, number[]>>(
+    () => draft?.warmupDone ?? {},
+  );
   const [showSwapModal, setShowSwapModal] = useState(false);
   const [guideId, setGuideId] = useState<string | null>(null);
   const [summary, setSummary] = useState<WorkoutSummary | null>(null);
@@ -110,6 +119,16 @@ export function EntrenoActivoPage() {
     return () => window.clearInterval(interval);
   }, [summary]);
 
+  // Pantalla siempre encendida durante el entreno.
+  useWakeLock(!summary);
+
+  // Fin del descanso: aviso (si acaba de terminar, no al retomar un borrador antiguo) y se cierra la barra.
+  useEffect(() => {
+    if (restEndsAt === null || now < restEndsAt) return;
+    if (now - restEndsAt < 5000) playRestAlert();
+    setRestEndsAt(null);
+  }, [now, restEndsAt]);
+
   useEffect(() => {
     if (summary) return;
     saveWorkoutDraft({
@@ -119,13 +138,39 @@ export function EntrenoActivoPage() {
       setsByExercise,
       startedAt,
       restEndsAt,
+      warmupDone,
     });
-  }, [summary, workout.id, plannedList, currentIdx, setsByExercise, startedAt, restEndsAt]);
+  }, [
+    summary,
+    workout.id,
+    plannedList,
+    currentIdx,
+    setsByExercise,
+    startedAt,
+    restEndsAt,
+    warmupDone,
+  ]);
 
   const originalPlanned = workout.exercises[currentIdx];
   const currentPlanned = plannedList[currentIdx];
   const currentExercise = currentPlanned ? getExerciseById(currentPlanned.exerciseId) : undefined;
   const currentSets = setsByExercise[currentIdx] ?? [];
+  const currentWarmups = warmups[currentIdx] ?? [];
+  const currentWarmupDone = warmupDone[currentIdx] ?? [];
+
+  const toggleWarmup = (i: number) => {
+    const done = currentWarmupDone.includes(i);
+    setWarmupDone((prev) => ({
+      ...prev,
+      [currentIdx]: done
+        ? (prev[currentIdx] ?? []).filter((x) => x !== i)
+        : [...(prev[currentIdx] ?? []), i],
+    }));
+    if (!done) {
+      unlockRestAlert();
+      setRestSeconds(60);
+    }
+  };
 
   const updateSet = (setIdx: number, updater: (row: ActiveSetRow) => ActiveSetRow) => {
     setSetsByExercise((prev) => {
@@ -151,6 +196,7 @@ export function EntrenoActivoPage() {
     }));
 
     if (nowCompleted) {
+      unlockRestAlert();
       setRestSeconds(currentExercise.defaultRestSec);
     }
   };
@@ -420,6 +466,56 @@ export function EntrenoActivoPage() {
             </button>
           </div>
         </section>
+
+        {currentWarmups.length > 0 && (
+          <section
+            aria-label="Calentamiento"
+            className="rounded-2xl border border-gold/30 bg-gold/5 p-3.5"
+          >
+            <div className="mb-2 flex items-center justify-between">
+              <span className="flex items-center gap-1.5 font-display text-sm font-bold text-gold">
+                <Flame className="h-4 w-4" />
+                CALENTAMIENTO
+              </span>
+              <span className="text-xs text-muted-foreground">No cuenta para el progreso</span>
+            </div>
+            <ul className="space-y-2">
+              {currentWarmups.map((w, i) => {
+                const done = currentWarmupDone.includes(i);
+                return (
+                  <li key={`${w.kg}-${w.reps}`}>
+                    <button
+                      type="button"
+                      onClick={() => toggleWarmup(i)}
+                      aria-pressed={done}
+                      className={`flex min-h-[48px] w-full items-center gap-3 rounded-xl border px-3 text-left text-sm font-semibold transition-colors active:scale-[0.98] ${
+                        done
+                          ? "border-success/50 bg-success/10 text-muted-foreground"
+                          : "border-border bg-surface text-foreground"
+                      }`}
+                    >
+                      <span
+                        className={`grid h-7 w-7 shrink-0 place-items-center rounded-md border ${
+                          done
+                            ? "border-success bg-success text-success-foreground"
+                            : "border-border text-muted-foreground"
+                        }`}
+                      >
+                        {done ? <Check className="h-4 w-4" /> : i + 1}
+                      </span>
+                      <span className="tabular-nums-display flex-1 text-base">
+                        {formatWeight(w.kg, profile.unit)} × {w.reps}
+                      </span>
+                      {i === 0 && w.kg === 20 && (
+                        <span className="text-xs text-muted-foreground">Barra vacía</span>
+                      )}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+        )}
 
         <section className="space-y-3">
           {currentSets.map((row, idx) => (
