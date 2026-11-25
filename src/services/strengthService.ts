@@ -6,6 +6,8 @@ import { allSets, bestE1rm, formatSet, relativeDayLabel, weeklyBestE1rm } from "
 import { detectPlateau } from "@/engine/plateau";
 import {
   applyDoubleProgression,
+  extraTopRepsFor,
+  incrementFor,
   applyProgressionToMesocycle,
   type PerformedSet,
 } from "@/engine/progression";
@@ -362,7 +364,15 @@ export function completeWorkout(input: CompleteWorkoutInput): CompleteWorkoutRes
       repRange: planned.repRange,
       targetRir: planned.targetRir,
     };
-    const result = applyDoubleProgression(prescription, done.sets);
+    // Salto según el ejercicio y la carga (micro-cargas) y, si es grande para el peso, más reps antes de subir.
+    const workKg = Math.max(0, ...done.sets.map((st) => st.kg));
+    const increment = incrementFor(getExerciseById(planned.exerciseId), workKg);
+    const result = applyDoubleProgression(
+      prescription,
+      done.sets,
+      increment,
+      extraTopRepsFor(increment, workKg),
+    );
     mesocycle = applyProgressionToMesocycle(
       mesocycle,
       input.workout.id,

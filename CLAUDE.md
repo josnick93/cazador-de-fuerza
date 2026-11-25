@@ -50,6 +50,8 @@ Futuro: Cloudflare Workers + D1 + login con Google (lo mismo que MacroQuest, `..
 ### Fase 2 — Entrenos personalizados (motor local)
 - [x] `src/engine/progression.ts`: doble progresión con RIR
       (reps ≥ máx y RIR ≥ objetivo → +2,5 kg y reps mínimas; RIR ≤ objetivo-2 → -2,5 kg; si no +1 rep). Tests.
+      Micro-cargas (`incrementFor`/`extraTopRepsFor`): pierna con carga externa +5 kg desde 100 kg, resto +2,5 kg;
+      si el salto supera el 6 % de la carga, hay que llegar a máx+2 reps antes de subir.
 - [x] `src/engine/plateau.ts`: estancamiento si el mejor e1RM de las 3 últimas semanas no supera +1% el máximo previo. Tests.
 - [x] `src/engine/generator.ts`: genera mesociclo (4-6 semanas) según objetivo, días/semana, duración, equipamiento y 1RM.
       Plantillas: Full body (2-3 días), Torso/Pierna (4), PPL (5-6), Powerlifting (básicos + %1RM). Descarga automática última semana.

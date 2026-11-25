@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
+
+import { EXERCISE_CATALOG } from "@/data/exercises";
 import type { Mesocycle } from "@/types";
-import { applyDoubleProgression, applyProgressionToMesocycle, parseRepRange } from "./progression";
+import {
+  applyDoubleProgression,
+  applyProgressionToMesocycle,
+  extraTopRepsFor,
+  incrementFor,
+  parseRepRange,
+} from "./progression";
 
 const rx = { kg: 80, repRange: "6-8", targetRir: 2 };
 const sets = (...rows: [number, number, number][]) =>
@@ -56,6 +64,35 @@ describe("applyDoubleProgression", () => {
     expect(applyDoubleProgression(rx, sets([80, 8, 2]), 5).nextKg).toBe(85);
     const light = { kg: 2.5, repRange: "10-12", targetRir: 2 };
     expect(applyDoubleProgression(light, sets([2.5, 8, 0])).nextKg).toBe(2.5);
+  });
+});
+
+describe("micro-cargas", () => {
+  const ex = (id: string) => EXERCISE_CATALOG.find((e) => e.id === id)!;
+
+  it("pierna fuerte sube de 5 en 5; el resto de 2,5 en 2,5", () => {
+    expect(incrementFor(ex("ex-sentadilla"), 100)).toBe(5);
+    expect(incrementFor(ex("ex-prensa"), 140)).toBe(5);
+    expect(incrementFor(ex("ex-sentadilla"), 90)).toBe(2.5);
+    expect(incrementFor(ex("ex-banca-barra"), 120)).toBe(2.5);
+    expect(incrementFor(ex("ex-sentadilla-bulgara"), 120)).toBe(2.5);
+  });
+
+  it("si el salto es grande para la carga, pide 2 reps más antes de subir", () => {
+    expect(extraTopRepsFor(2.5, 30)).toBe(2);
+    expect(extraTopRepsFor(2.5, 60)).toBe(0);
+    const press = { kg: 30, repRange: "6-8", targetRir: 2 };
+    const at8 = [1, 2, 3].map(() => ({ kg: 30, reps: 8, rir: 2 }));
+    expect(applyDoubleProgression(press, at8, 2.5, 2)).toMatchObject({
+      decision: "add-rep",
+      nextTargetReps: 9,
+    });
+    const at10 = [1, 2, 3].map(() => ({ kg: 30, reps: 10, rir: 2 }));
+    expect(applyDoubleProgression(press, at10, 2.5, 2)).toMatchObject({
+      decision: "increase-load",
+      nextKg: 32.5,
+      nextTargetReps: 6,
+    });
   });
 });
 

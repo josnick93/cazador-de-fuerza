@@ -89,6 +89,11 @@ export function RirHelpSheet({ targetRir, onClose }: { targetRir: number; onClos
                 <strong className="text-foreground">baja el peso</strong>.
               </li>
               <li>Si no, mantiene el peso y te pide una rep más.</li>
+              <li>
+                Los saltos dependen del ejercicio: sentadilla, peso muerto y prensa suben 5 kg a
+                partir de 100 kg; el resto, 2,5 kg. Si 2,5 kg es mucho para ese peso (militar
+                ligero, laterales…), te pedirá 2 reps más del rango antes de subir.
+              </li>
             </ul>
           </div>
 
