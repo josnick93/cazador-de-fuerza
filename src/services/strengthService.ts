@@ -18,6 +18,7 @@ import {
   nextBreakKind,
   stalledSessions,
 } from "@/engine/plateauBreak";
+import { weeklyGoal, weeklyGoalMessage, type WeeklyGoal } from "@/engine/weeklyGoal";
 import { addXp, sessionXp } from "@/engine/xp";
 import { findAlternatives, substitutePlannedExercise } from "@/engine/substitution";
 import { sessionWarmups, type WarmupSet } from "@/engine/warmup";
@@ -603,6 +604,12 @@ export function getStagnationAlert(liftId: LiftId): StagnationAlert | null {
     summary: `${liftName} estancada ${plateau.weeksStalled} semanas`,
     cause: explainPlateau(plateau.weeksStalled),
   };
+}
+
+/** Objetivo semanal de constancia (días por semana del perfil) con la frase para Hoy. */
+export function getWeeklyGoal(now = new Date()): WeeklyGoal & { message: string } {
+  const goal = weeklyGoal(getWorkoutLogs(), getUserProfile().daysPerWeek, now);
+  return { ...goal, message: weeklyGoalMessage(goal) };
 }
 
 // ── Ajuste del plan con IA ───────────────────────────────────────────────────

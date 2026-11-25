@@ -1,5 +1,6 @@
 import { ChevronRight, Clock, Flame, Play, Swords } from "lucide-react";
 import { useApp } from "@/components/AppContext";
+import { WeeklyGoalCard } from "@/components/WeeklyGoalCard";
 import { formatWeight, getExerciseById, getTodayWorkout } from "@/services/strengthService";
 import { getWorkoutDraft } from "@/services/workoutDraftService";
 
@@ -12,6 +13,8 @@ export function HoyPage() {
 
   return (
     <div className="space-y-5 px-4 py-4">
+      <WeeklyGoalCard />
+
       <section className="system-panel relative overflow-hidden rounded-2xl p-4">
         <div className="mb-2 flex items-center justify-between gap-2">
           <span className="inline-flex items-center gap-1.5 rounded-md border border-primary/40 bg-primary/15 px-2.5 py-1 font-display text-xs font-bold tracking-wider text-primary">

@@ -64,6 +64,9 @@ Futuro: Cloudflare Workers + D1 + login con Google (lo mismo que MacroQuest, `..
 - [x] Al terminar sesión: aplicar progresión, guardar PRs, sumar XP.
 - [x] Biblioteca de ejercicios: técnica, consejos, errores y fotos animadas; alternativas de máquina/polea si está ocupada.
 
+- [x] Objetivo semanal en Hoy (`engine/weeklyGoal.ts`, `WeeklyGoalCard`): entrenos de la semana (lunes-domingo, hora
+      local) frente a `daysPerWeek`, días marcados, si aún llegas y racha de semanas cumplidas. Los extra cuentan.
+
 ### Fase 3 — Backend Cloudflare (compartido con MacroQuest)
 MacroQuest NO usa Supabase: es un Cloudflare Worker (`../macro-quest-app/worker`) con D1 (`macro-quest`),
 login con Google (`worker/auth.ts`, usuarios y sesiones en D1) y sync (`worker/sync.ts`, tabla `records`).
