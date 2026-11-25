@@ -53,6 +53,10 @@ Futuro: Cloudflare Workers + D1 + login con Google (lo mismo que MacroQuest, `..
       Micro-cargas (`incrementFor`/`extraTopRepsFor`): pierna con carga externa +5 kg desde 100 kg, resto +2,5 kg;
       si el salto supera el 6 % de la carga, hay que llegar a máx+2 reps antes de subir.
 - [x] `src/engine/plateau.ts`: estancamiento si el mejor e1RM de las 3 últimas semanas no supera +1% el máximo previo. Tests.
+      Romper estancamientos (`engine/plateauBreak.ts`, al cerrar sesión): por ejercicio, si las 3 últimas sesiones
+      (sin descargas, desde el último cambio) no superan +1 % el mejor e1RM previo y no tocaba subir, se alterna
+      descarga −10 % → rango de reps nuevo → variante del mismo patrón. Se marca en `LoggedExercise.plateauBreak`
+      (abre bloque nuevo), `WorkoutLog.deload` excluye descargas y `PlannedExercise.note` avisa en Hoy/Entreno.
 - [x] `src/engine/generator.ts`: genera mesociclo (4-6 semanas) según objetivo, días/semana, duración, equipamiento y 1RM.
       Plantillas: Full body (2-3 días), Torso/Pierna (4), PPL (5-6), Powerlifting (básicos + %1RM). Descarga automática última semana.
 - [x] Persistencia local (localStorage/IndexedDB) de workouts y sets reales, sustituyendo mocks en services.

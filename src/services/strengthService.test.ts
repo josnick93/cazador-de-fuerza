@@ -160,6 +160,30 @@ describe("strengthService (persistencia local)", () => {
       expect(profilePatch).toEqual({ xp: 110, level: 2, nextLevelXp: 600, hunterRank: "Rango E" });
     });
 
+    it("tras 4 sesiones sin mejorar en un ejercicio aplica una descarga y la marca en el registro", () => {
+      seedProfile();
+      const results = [];
+      for (let i = 0; i < 16 && results.length < 4; i++) {
+        const workout = getTodayWorkout();
+        const first = workout.exercises[0]!;
+        const isBench = first.exerciseId === "ex-banca-barra";
+        const res = finishToday(
+          isBench ? [{ kg: 80, reps: 3, rir: 2 }] : [{ kg: 60, reps: 6, rir: 2 }],
+        );
+        if (isBench && !res.log.deload) results.push(res);
+      }
+      expect(results).toHaveLength(4);
+      results
+        .slice(0, 3)
+        .forEach((r) => expect(r.summary.progressions[0]?.plateauBreak).toBeUndefined());
+      const last = results[3]!;
+      expect(last.summary.progressions[0]?.plateauBreak?.kind).toBe("descarga");
+      expect(last.summary.progressions[0]?.nextKg).toBe(72.5);
+      expect(last.log.exercises[0]?.plateauBreak).toBe("descarga");
+      const next = sessionsWith("ex-banca-barra").find((e) => e.note);
+      expect(next?.note).toMatch(/estancamiento/);
+    });
+
     it("al terminar el mesociclo genera el siguiente", () => {
       seedProfile({ goal: "recomposicion", daysPerWeek: 2 }); // 4 semanas × 2 = 8 sesiones
       const first = getActiveMesocycle().id;

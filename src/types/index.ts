@@ -78,6 +78,8 @@ export interface PlannedExercise {
   /** Reps objetivo dentro del rango (doble progresión); si falta, el mínimo del rango. */
   targetReps?: number;
   lastSessionText: string;
+  /** Aviso del plan para esta aparición (p. ej. por qué se cambió para romper un estancamiento). */
+  note?: string;
 }
 
 export interface WorkoutPlan {
@@ -160,7 +162,12 @@ export interface ProgressionNote {
   decision: "increase-load" | "decrease-load" | "add-rep" | "hold";
   nextKg: number;
   nextTargetReps: number;
+  /** Si se detectó estancamiento: qué cambio se aplica y por qué. */
+  plateauBreak?: { kind: PlateauBreakKind; message: string };
 }
+
+/** Cambio automático para romper un estancamiento de un ejercicio. */
+export type PlateauBreakKind = "descarga" | "rango" | "variante";
 
 export interface WorkoutSummary {
   workoutTitle: string;
@@ -219,6 +226,8 @@ export interface LoggedExercise {
   /** Ejercicio original del plan (difiere de exerciseId si se sustituyó). */
   plannedExerciseId: string;
   sets: LoggedSet[];
+  /** Cambio aplicado tras esta sesión por estancamiento (marca el inicio de un nuevo bloque). */
+  plateauBreak?: PlateauBreakKind;
 }
 
 export interface WorkoutLog {
@@ -230,4 +239,6 @@ export interface WorkoutLog {
   durationSeconds: number;
   exercises: LoggedExercise[];
   xpEarned: number;
+  /** Sesión de la semana de descarga (no cuenta para detectar estancamientos). */
+  deload?: boolean;
 }

@@ -11,6 +11,7 @@ import {
   Minus,
   Plus,
   RefreshCw,
+  Shuffle,
   TrendingDown,
   TrendingUp,
   Trophy,
@@ -354,6 +355,28 @@ export function EntrenoActivoPage() {
             </div>
           )}
 
+          {summary.progressions.some((p) => p.plateauBreak) && (
+            <div role="status" className="rounded-2xl border border-gold/50 bg-gold/10 p-4">
+              <p className="flex items-center gap-2 font-display text-sm font-bold uppercase tracking-wider text-gold">
+                <Shuffle className="h-4 w-4" />
+                Rompemos el estancamiento
+              </p>
+              <ul className="mt-2 space-y-2.5 text-sm">
+                {summary.progressions
+                  .filter((p) => p.plateauBreak)
+                  .map((p) => (
+                    <li key={p.exerciseName}>
+                      <span className="font-semibold text-foreground">{p.exerciseName}</span>
+                      <span className="text-secondary-foreground">
+                        {" "}
+                        · {p.plateauBreak?.message}
+                      </span>
+                    </li>
+                  ))}
+              </ul>
+            </div>
+          )}
+
           {summary.progressions.length > 0 && (
             <div className="system-panel rounded-2xl p-4">
               <p className="font-display text-sm font-bold uppercase tracking-wider text-foreground">
@@ -477,6 +500,12 @@ export function EntrenoActivoPage() {
               <p className="mt-1 text-xs font-medium text-muted-foreground">
                 {currentPlanned.lastSessionText}
               </p>
+              {currentPlanned.note && (
+                <p className="mt-1 flex items-start gap-1 text-xs font-semibold text-gold">
+                  <Shuffle className="mt-px h-3.5 w-3.5 shrink-0" />
+                  {currentPlanned.note}
+                </p>
+              )}
             </div>
           </div>
           <div className="mt-3 grid grid-cols-2 gap-2">

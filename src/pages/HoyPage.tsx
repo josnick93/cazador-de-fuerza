@@ -84,10 +84,16 @@ export function HoyPage() {
                       : planned.repRange}{" "}
                     @ RIR {planned.targetRir} · {formatWeight(planned.targetKg, profile.unit)}
                   </p>
-                  <p className="mt-0.5 text-xs text-muted-foreground">
+                  <p
+                    className={`mt-0.5 text-xs ${
+                      planned.note && doneByExercise(index) === 0
+                        ? "font-semibold text-gold"
+                        : "text-muted-foreground"
+                    }`}
+                  >
                     {doneByExercise(index) > 0
                       ? `${doneByExercise(index)}/${planned.sets} series hechas`
-                      : planned.lastSessionText}
+                      : (planned.note ?? planned.lastSessionText)}
                   </p>
                 </div>
                 <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" />

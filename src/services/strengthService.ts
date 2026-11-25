@@ -11,6 +11,13 @@ import {
   applyProgressionToMesocycle,
   type PerformedSet,
 } from "@/engine/progression";
+import {
+  applyPlateauBreak,
+  blockBestE1rm,
+  exerciseExposures,
+  nextBreakKind,
+  stalledSessions,
+} from "@/engine/plateauBreak";
 import { addXp, sessionXp } from "@/engine/xp";
 import { findAlternatives, substitutePlannedExercise } from "@/engine/substitution";
 import { sessionWarmups, type WarmupSet } from "@/engine/warmup";
@@ -42,6 +49,7 @@ import type {
   MuscleGroup,
   PersonalRecord,
   PlannedExercise,
+  PlateauBreakKind,
   PlannedSession,
   ProgressionNote,
   StagnationAlert,
@@ -356,9 +364,16 @@ export function completeWorkout(input: CompleteWorkoutInput): CompleteWorkoutRes
     });
 
   // Progresión: solo si se hizo el ejercicio del plan (un sustituto no aparece en sesiones futuras).
+  const previousLogs = getWorkoutLogs();
+  const deload =
+    mesocycle.weeks.find((w) => w.sessions.some((ss) => ss.id === input.workout.id))?.phase ===
+    "Descarga";
+  const breaks = new Map<string, PlateauBreakKind>();
   input.workout.exercises.forEach((planned, idx) => {
     const done = input.exercises[idx];
     if (!done || done.sets.length === 0 || done.exerciseId !== planned.exerciseId) return;
+    const exercise = getExerciseById(planned.exerciseId);
+    const exerciseName = exercise?.name ?? planned.exerciseId;
     const prescription = {
       kg: planned.targetKg,
       repRange: planned.repRange,
@@ -366,13 +381,52 @@ export function completeWorkout(input: CompleteWorkoutInput): CompleteWorkoutRes
     };
     // Salto según el ejercicio y la carga (micro-cargas) y, si es grande para el peso, más reps antes de subir.
     const workKg = Math.max(0, ...done.sets.map((st) => st.kg));
-    const increment = incrementFor(getExerciseById(planned.exerciseId), workKg);
+    const increment = incrementFor(exercise, workKg);
     const result = applyDoubleProgression(
       prescription,
       done.sets,
       increment,
       extraTopRepsFor(increment, workKg),
     );
+
+    // Estancamiento: si toca subir se le da la oportunidad; en descarga no se evalúa.
+    if (exercise && !deload && result.decision !== "increase-load") {
+      const today = Math.max(0, ...done.sets.map((st) => calculateE1rm(st.kg, st.reps, st.rir)));
+      const exposures = [
+        ...exerciseExposures(previousLogs, planned.exerciseId),
+        { e1rm: today, deload: false },
+      ];
+      const stalled = stalledSessions(exposures);
+      const broken =
+        stalled > 0
+          ? applyPlateauBreak({
+              mesocycle,
+              fromSessionId: input.workout.id,
+              exercise,
+              prescription,
+              workKg,
+              e1rm: blockBestE1rm(exposures),
+              sessionsStalled: stalled,
+              kind: nextBreakKind(exposures),
+              catalog: EXERCISE_CATALOG,
+              input: getUserProfile(),
+              knownE1rm: getKnownE1rms(),
+            })
+          : null;
+      if (broken) {
+        mesocycle = broken.mesocycle;
+        breaks.set(planned.exerciseId, broken.kind);
+        progressions.push({
+          exerciseName,
+          decision: broken.kind === "descarga" ? "decrease-load" : "hold",
+          nextKg: broken.nextKg,
+          nextTargetReps: broken.nextTargetReps,
+          plateauBreak: { kind: broken.kind, message: broken.message },
+        });
+        return;
+      }
+    }
+
     mesocycle = applyProgressionToMesocycle(
       mesocycle,
       input.workout.id,
@@ -381,7 +435,7 @@ export function completeWorkout(input: CompleteWorkoutInput): CompleteWorkoutRes
       result,
     );
     progressions.push({
-      exerciseName: getExerciseById(planned.exerciseId)?.name ?? planned.exerciseId,
+      exerciseName,
       decision: result.decision,
       nextKg: result.nextKg,
       nextTargetReps: result.nextTargetReps,
@@ -397,8 +451,12 @@ export function completeWorkout(input: CompleteWorkoutInput): CompleteWorkoutRes
     title: input.workout.title,
     completedAt: new Date().toISOString(),
     durationSeconds: input.durationSeconds,
-    exercises,
+    exercises: exercises.map((ex) => {
+      const kind = breaks.get(ex.exerciseId);
+      return kind ? { ...ex, plateauBreak: kind } : ex;
+    }),
     xpEarned,
+    ...(deload ? { deload: true } : {}),
   };
   saveWorkoutLog(log);
 

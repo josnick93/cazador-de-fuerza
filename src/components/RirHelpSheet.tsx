@@ -94,6 +94,11 @@ export function RirHelpSheet({ targetRir, onClose }: { targetRir: number; onClos
                 partir de 100 kg; el resto, 2,5 kg. Si 2,5 kg es mucho para ese peso (militar
                 ligero, laterales…), te pedirá 2 reps más del rango antes de subir.
               </li>
+              <li>
+                Si un ejercicio lleva 3 sesiones sin mejorar, la app lo cambia sola: primero baja un
+                10 % para volver a construir, luego cambia el rango de reps y después prueba una
+                variante.
+              </li>
             </ul>
           </div>
 
